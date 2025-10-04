@@ -1,0 +1,103 @@
+from pinecone import Pinecone, ServerlessSpec
+from typing import List, Dict, Any, Optional
+from app.models.schemas import ChunkMetadata, PaperMetadata
+from app.services.embeddings import EmbeddingService
+from app.config import get_settings
+import time
+
+settings = get_settings()
+
+class VectorStore:
+    def __init__(self):
+        self.pc = Pinecone(api_key=settings.pinecone_api_key)
+        self.embedding_service = EmbeddingService()
+        self.index_name = settings.pinecone_index_name
+        self.index = None
+        
+    def initialize_index(self):
+        existing_indexes = [index.name for index in self.pc.list_indexes()]
+        
+        if self.index_name not in existing_indexes:
+            self.pc.create_index(
+                name=self.index_name,
+                dimension=settings.embedding_dimensions,
+                metric="cosine",
+                spec=ServerlessSpec(
+                    cloud="aws",
+                    region=settings.pinecone_environment
+                )
+            )
+            
+            while not self.pc.describe_index(self.index_name).status['ready']:
+                time.sleep(1)
+        
+        self.index = self.pc.Index(self.index_name)
+    
+    def upsert_chunks(self, chunks: List[ChunkMetadata], batch_size: int = 100):
+        if not self.index:
+            self.initialize_index()
+        
+        texts = [chunk.text for chunk in chunks]
+        embeddings = self.embedding_service.generate_embeddings_batch(texts, batch_size)
+        
+        vectors = []
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            vector_id = f"{chunk.paper_id}_chunk_{chunk.chunk_index}"
+            
+            metadata = chunk.metadata.copy()
+            metadata.update({
+                "paper_id": chunk.paper_id,
+                "chunk_type": chunk.chunk_type,
+                "chunk_index": chunk.chunk_index,
+                "text": chunk.text[:1000]
+            })
+            
+            vectors.append({
+                "id": vector_id,
+                "values": embedding,
+                "metadata": metadata
+            })
+        
+        for i in range(0, len(vectors), batch_size):
+            batch = vectors[i:i + batch_size]
+            self.index.upsert(vectors=batch)
+        
+        print(f"Upserted {len(vectors)} vectors to Pinecone")
+    
+    def upsert_papers(self, papers_data: List[tuple[PaperMetadata, List[ChunkMetadata]]]):
+        if not self.index:
+            self.initialize_index()
+        
+        for metadata, chunks in papers_data:
+            self.upsert_chunks(chunks)
+    
+    def search(
+        self, 
+        query: str, 
+        top_k: int = 10,
+        filter_dict: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        if not self.index:
+            self.initialize_index()
+        
+        query_embedding = self.embedding_service.generate_embedding(query)
+        
+        results = self.index.query(
+            vector=query_embedding,
+            top_k=top_k,
+            include_metadata=True,
+            filter=filter_dict
+        )
+        
+        return [{
+            "id": match.id,
+            "score": match.score,
+            "metadata": match.metadata
+        } for match in results.matches]
+    
+    def get_all_metadata(self) -> List[Dict[str, Any]]:
+        if not self.index:
+            self.initialize_index()
+        
+        stats = self.index.describe_index_stats()
+        return stats
