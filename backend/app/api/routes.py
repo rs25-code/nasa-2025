@@ -45,7 +45,11 @@ async def summarize_results(data: Dict[str, Any]) -> Dict[str, Any]:
         persona = data.get("persona", "scientist")
         
         if not results:
-            return {"summary": "No results to summarize"}
+            return {
+                "summary": "No results to summarize",
+                "key_points": [],
+                "persona": persona
+            }
         
         texts = [r.get("metadata", {}).get("text", "") for r in results[:5]]
         
@@ -56,10 +60,11 @@ async def summarize_results(data: Dict[str, Any]) -> Dict[str, Any]:
         }
         
         context = context_map.get(persona, context_map["scientist"])
-        summary = llm_service.generate_summary(texts, context)
+        result = llm_service.generate_summary(texts, context)
         
         return {
-            "summary": summary,
+            "summary": result.get("summary", ""),
+            "key_points": result.get("key_points", []),
             "papers_analyzed": len(results),
             "persona": persona
         }
@@ -127,7 +132,6 @@ async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
             gaps_clean = gaps_clean.strip()
             parsed_gaps = json.loads(gaps_clean)
 
-        # Return the parsed gaps directly without wrapping in "gaps" key
         return parsed_gaps
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -155,37 +159,27 @@ async def analyze_trends() -> Dict[str, Any]:
         organism_counts = Counter(organisms)
         topic_counts = Counter(topics)
 
-        trends = {
-            "research_by_year": dict(sorted(year_counts.items())),
-            "top_organisms": dict(organism_counts.most_common(10)),
-            "top_topics": dict(topic_counts.most_common(10)),
-            "emerging_areas": await _identify_emerging_areas(results)
-        }
+        emerging = identify_emerging_areas(topic_counts, year_counts)
 
-        return trends
+        return {
+            "research_by_year": dict(year_counts),
+            "top_organisms": dict(organism_counts.most_common(10)),
+            "top_topics": dict(topic_counts.most_common(15)),
+            "emerging_areas": emerging
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-async def _identify_emerging_areas(results: List[Dict[str, Any]]) -> List[str]:
-    recent_results = [r for r in results if r.get("metadata", {}).get("year", 0) >= 2020]
-    older_results = [r for r in results if r.get("metadata", {}).get("year", 0) < 2020]
+def identify_emerging_areas(topic_counts: Counter, year_counts: Counter) -> list:
+    if not year_counts:
+        return []
     
-    recent_topics = []
-    older_topics = []
-    
-    for r in recent_results:
-        recent_topics.extend(r.get("metadata", {}).get("keywords", []))
-    
-    for r in older_results:
-        older_topics.extend(r.get("metadata", {}).get("keywords", []))
-    
-    recent_counts = Counter(recent_topics)
-    older_counts = Counter(older_topics)
+    recent_years = sorted(year_counts.keys())[-3:]
+    avg_count = sum(topic_counts.values()) / len(topic_counts) if topic_counts else 0
     
     emerging = []
-    for topic, recent_count in recent_counts.most_common(20):
-        older_count = older_counts.get(topic, 0)
-        if recent_count > older_count * 1.5:
+    for topic, count in topic_counts.items():
+        if count > avg_count * 1.5:
             emerging.append(topic)
     
     return emerging[:5]

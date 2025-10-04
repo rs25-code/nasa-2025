@@ -1,5 +1,6 @@
 from openai import OpenAI
 from app.config import get_settings
+import json
 
 settings = get_settings()
 
@@ -18,27 +19,49 @@ class LLMService:
         )
         return response.choices[0].message.content
     
-    def generate_summary(self, texts: list[str], context: str = "") -> str:
+    def generate_summary(self, texts: list[str], context: str = "") -> dict:
         combined_text = "\n\n".join(texts)
         
         prompt = f"""
 {context}
 
-Based on the following research excerpts, provide a clear, concise summary:
+Based on the following research excerpts, provide a structured summary.
 
+Return ONLY valid JSON with no markdown formatting:
+{{
+    "summary": "2-3 paragraph summary of the research",
+    "key_points": ["key point 1", "key point 2", "key point 3", "key point 4", "key point 5"]
+}}
+
+Research excerpts:
 {combined_text[:6000]}
-
-Summary:"""
+"""
         
         response = self.client.chat.completions.create(
             model=settings.llm_model,
             messages=[
-                {"role": "system", "content": "You are a research summarization expert."},
+                {"role": "system", "content": "You are a research summarization expert. Return only valid JSON with no markdown formatting."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3
         )
-        return response.choices[0].message.content
+        
+        result = response.choices[0].message.content
+        
+        # Parse JSON response
+        try:
+            return json.loads(result)
+        except json.JSONDecodeError:
+            # Clean markdown if present
+            result_clean = result.strip()
+            if result_clean.startswith("```json"):
+                result_clean = result_clean[7:]
+            if result_clean.startswith("```"):
+                result_clean = result_clean[3:]
+            if result_clean.endswith("```"):
+                result_clean = result_clean[:-3]
+            result_clean = result_clean.strip()
+            return json.loads(result_clean)
     
     def analyze_consensus(self, texts: list[str], topic: str) -> dict:
         combined_text = "\n\n".join(texts)
@@ -98,15 +121,15 @@ Sample research:
 Identify:
 1. Under-researched organisms or conditions
 2. Missing experimental approaches
-3. Temporal gaps (areas needing more recent research)
-4. Critical questions not yet answered
+3. Critical questions not yet answered
+4. Recommendations for future research
 
 Return ONLY valid JSON:
 {{
     "under_researched_areas": ["area1", "area2"],
     "missing_approaches": ["approach1"],
-    "temporal_gaps": ["gap1"],
-    "critical_questions": ["question1", "question2"]
+    "critical_questions": ["question1", "question2"],
+    "recommendations": ["recommendation1", "recommendation2"]
 }}
 """
         
