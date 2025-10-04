@@ -6,6 +6,7 @@ import TrendsView from '../visualizations/TrendsView';
 import GapsView from '../gaps/GapsView';
 import type { Persona } from '@/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Search, TrendingUp, Target } from 'lucide-react';
 
 interface LayoutProps {
   currentPersona: Persona;
@@ -16,20 +17,41 @@ export default function Layout({ currentPersona, onPersonaChange }: LayoutProps)
   const [activeTab, setActiveTab] = useState('search');
 
   return (
-    <div className="min-h-screen bg-nasa-lightgray">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       <QuickStartDialog />
       <Header 
         currentPersona={currentPersona}
         onPersonaChange={onPersonaChange}
       />
       
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-8">
-            <TabsTrigger value="search">Search</TabsTrigger>
-            <TabsTrigger value="trends">Trends</TabsTrigger>
-            <TabsTrigger value="gaps">Gap Analysis</TabsTrigger>
-          </TabsList>
+          {/* Enhanced tabs with better styling */}
+          <div className="flex justify-center mb-10">
+            <TabsList className="inline-flex h-auto p-1 bg-white/80 backdrop-blur-sm border-2 border-gray-200 rounded-xl shadow-lg">
+              <TabsTrigger 
+                value="search" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#0B3D91] data-[state=active]:to-[#1a5cc4] data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-300 rounded-[10px] px-8 py-2.5 font-semibold flex items-center gap-2"
+              >
+                <Search className="w-4 h-4" />
+                Search
+              </TabsTrigger>
+              <TabsTrigger 
+                value="trends"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#0B3D91] data-[state=active]:to-[#1a5cc4] data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-300 rounded-[10px] px-8 py-2.5 font-semibold flex items-center gap-2"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Trends
+              </TabsTrigger>
+              <TabsTrigger 
+                value="gaps"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#0B3D91] data-[state=active]:to-[#1a5cc4] data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-300 rounded-[10px] px-8 py-2.5 font-semibold flex items-center gap-2"
+              >
+                <Target className="w-4 h-4" />
+                Gap Analysis
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="search" className="mt-0 animate-in">
             <SearchView currentPersona={currentPersona} />
@@ -44,6 +66,13 @@ export default function Layout({ currentPersona, onPersonaChange }: LayoutProps)
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Decorative footer */}
+      <footer className="mt-20 py-8 border-t border-gray-200 bg-white/50 backdrop-blur-sm">
+        <div className="container mx-auto px-6 text-center text-gray-600 text-sm">
+          <p>Powered by NASA Space Biology Research | Built for Space Apps Challenge 2025</p>
+        </div>
+      </footer>
     </div>
   );
 }

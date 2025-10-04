@@ -1,20 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Rocket, Microscope, TrendingUp, Target } from 'lucide-react';
+import { Rocket, Search, TrendingUp, Target } from 'lucide-react';
 
 export default function QuickStartDialog() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const hasSeenGuide = localStorage.getItem('hasSeenQuickStart');
-    if (!hasSeenGuide) {
+    const hasSeenQuickStart = localStorage.getItem('hasSeenQuickStart');
+    if (!hasSeenQuickStart) {
       setOpen(true);
     }
   }, []);
@@ -26,62 +27,77 @@ export default function QuickStartDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl bg-white border-2 border-gray-200 shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl flex items-center gap-2">
-            <Rocket className="w-6 h-6 text-nasa-blue" />
-            Welcome to Space Biology Knowledge Engine
-          </DialogTitle>
-          <DialogDescription className="text-base">
-            Your AI-powered research assistant for space biology
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-3 bg-gradient-to-br from-[#0B3D91] to-[#1a5cc4] rounded-xl shadow-lg">
+              <Rocket className="w-6 h-6 text-white" />
+            </div>
+            <DialogTitle className="text-3xl font-bold text-gray-800">
+              Welcome to the Space Biology Knowledge Engine!
+            </DialogTitle>
+          </div>
+          <DialogDescription className="text-base text-gray-600 mt-4 leading-relaxed">
+            Explore 608 NASA space biology research papers with AI-powered insights tailored to your needs.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="py-6 space-y-4">
+          <h4 className="font-semibold text-lg text-gray-800 mb-4">Get Started:</h4>
+          
           <div className="space-y-3">
-            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-              <Microscope className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-sm mb-1">Search Tab</h4>
+            <div className="flex items-start gap-4 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-100">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <Search className="w-5 h-5 text-[#0B3D91]" />
+              </div>
+              <div className="flex-1">
+                <h5 className="font-semibold text-gray-800 mb-1">Search Tab</h5>
                 <p className="text-sm text-gray-600">
-                  Semantic search across 608 research papers with smart filtering by year, organism, and section
+                  Use semantic search to find relevant research papers with advanced filters
                 </p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-green-600 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-sm mb-1">Trends Tab</h4>
+            <div className="flex items-start gap-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border-2 border-purple-100">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <TrendingUp className="w-5 h-5 text-[#0B3D91]" />
+              </div>
+              <div className="flex-1">
+                <h5 className="font-semibold text-gray-800 mb-1">Trends Tab</h5>
                 <p className="text-sm text-gray-600">
-                  Visualize research patterns, emerging areas, and topic distributions over time
+                  Visualize research patterns, organisms studied, and emerging areas
                 </p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
-              <Target className="w-5 h-5 text-purple-600 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-sm mb-1">Gap Analysis Tab</h4>
+            <div className="flex items-start gap-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-100">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <Target className="w-5 h-5 text-[#0B3D91]" />
+              </div>
+              <div className="flex-1">
+                <h5 className="font-semibold text-gray-800 mb-1">Gap Analysis Tab</h5>
                 <p className="text-sm text-gray-600">
-                  Discover under-researched areas and future research opportunities
+                  Discover under-researched areas and strategic opportunities
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="pt-2 border-t">
-            <p className="text-sm text-gray-600">
-              <strong>Pro tip:</strong> Switch personas (Scientist, Investor, Mission Architect) using the dropdown in the top-right to get tailored views and insights!
+          <div className="mt-6 p-4 bg-gradient-to-r from-[#0B3D91]/5 to-[#00A9CE]/5 rounded-xl border-2 border-[#0B3D91]/20">
+            <p className="text-sm text-gray-700 font-medium">
+              💡 <strong>Pro Tip:</strong> Switch between personas (Scientist, Investor, Architect) in the header to get tailored insights for your role!
             </p>
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <Button onClick={handleClose} className="bg-nasa-blue hover:bg-nasa-blue/90">
-            Get Started
+        <DialogFooter>
+          <Button 
+            onClick={handleClose}
+            className="w-full bg-gradient-to-r from-[#0B3D91] to-[#1a5cc4] hover:from-[#1a5cc4] hover:to-[#00A9CE] text-white shadow-lg hover:shadow-xl"
+          >
+            Got it, let's explore! 🚀
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

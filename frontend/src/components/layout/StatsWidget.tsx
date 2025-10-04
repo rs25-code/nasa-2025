@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDatabaseStats } from '@/services/api';
 import type { DatabaseStats } from '@/types';
-import { FileText, Database, TrendingUp } from 'lucide-react';
+import { Database, FileText, TrendingUp } from 'lucide-react';
 
 export default function StatsWidget() {
   const [stats, setStats] = useState<DatabaseStats | null>(null);
@@ -21,18 +21,32 @@ export default function StatsWidget() {
   if (!stats) return null;
 
   return (
-    <div className="flex items-center gap-6 text-xs text-white/80">
-      <div className="flex items-center gap-2">
-        <FileText className="w-4 h-4" />
-        <span>{stats.total_papers} papers</span>
+    <div className="flex items-center gap-4">
+      {/* Papers count */}
+      <div className="group flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg border border-white/20 hover:bg-white/15 hover:border-white/30 transition-all duration-200 backdrop-blur-sm">
+        <FileText className="w-3.5 h-3.5 text-[#00A9CE] group-hover:scale-110 transition-transform" />
+        <div className="flex items-baseline gap-1">
+          <span className="text-sm font-bold text-white">{stats.total_papers}</span>
+          <span className="text-xs text-white/70">papers</span>
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <Database className="w-4 h-4" />
-        <span>{stats.total_vectors.toLocaleString()} vectors</span>
+
+      {/* Vectors count */}
+      <div className="group flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg border border-white/20 hover:bg-white/15 hover:border-white/30 transition-all duration-200 backdrop-blur-sm">
+        <Database className="w-3.5 h-3.5 text-[#FC3D21] group-hover:scale-110 transition-transform" />
+        <div className="flex items-baseline gap-1">
+          <span className="text-sm font-bold text-white">{stats.total_vectors.toLocaleString()}</span>
+          <span className="text-xs text-white/70">vectors</span>
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <TrendingUp className="w-4 h-4" />
-        <span>{(stats.index_fullness * 100).toFixed(1)}% indexed</span>
+
+      {/* Index fullness */}
+      <div className="group flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg border border-white/20 hover:bg-white/15 hover:border-white/30 transition-all duration-200 backdrop-blur-sm">
+        <TrendingUp className="w-3.5 h-3.5 text-green-400 group-hover:scale-110 transition-transform" />
+        <div className="flex items-baseline gap-1">
+          <span className="text-sm font-bold text-white">{(stats.index_fullness * 100).toFixed(1)}%</span>
+          <span className="text-xs text-white/70">indexed</span>
+        </div>
       </div>
     </div>
   );

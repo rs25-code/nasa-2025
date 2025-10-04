@@ -37,11 +37,13 @@ export default function GapsView({ currentPersona }: GapsViewProps) {
     return (
       <div className="space-y-6">
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="p-6">
-            <Skeleton className="h-6 w-1/3 mb-4" />
-            <Skeleton className="h-4 w-full mb-2" />
-            <Skeleton className="h-4 w-full mb-2" />
-            <Skeleton className="h-4 w-2/3" />
+          <Card key={i} className="p-8 bg-white/80 backdrop-blur-sm border-2 border-gray-200 shadow-lg">
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-1/3 rounded-lg" />
+              <Skeleton className="h-4 w-full rounded" />
+              <Skeleton className="h-4 w-full rounded" />
+              <Skeleton className="h-4 w-2/3 rounded" />
+            </div>
           </Card>
         ))}
       </div>
@@ -50,9 +52,9 @@ export default function GapsView({ currentPersona }: GapsViewProps) {
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error}</AlertDescription>
+      <Alert variant="destructive" className="border-2 shadow-lg">
+        <AlertCircle className="h-5 w-5" />
+        <AlertDescription className="text-base">{error}</AlertDescription>
       </Alert>
     );
   }
@@ -62,39 +64,43 @@ export default function GapsView({ currentPersona }: GapsViewProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Target className="w-8 h-8 text-nasa-blue" />
+      <div className="flex items-center gap-4 animate-in">
+        <div className="p-4 bg-gradient-to-br from-[#0B3D91] to-[#1a5cc4] rounded-2xl shadow-lg">
+          <Target className="w-8 h-8 text-white" />
+        </div>
         <div>
-          <h2 className="text-3xl font-bold text-nasa-darkgray">Research Gap Analysis</h2>
-          <p className="text-gray-600">Identify under-researched areas and opportunities</p>
+          <h2 className="text-4xl font-bold text-gray-800">Research Gap Analysis</h2>
+          <p className="text-gray-600 text-lg mt-1">Identify under-researched areas and opportunities</p>
         </div>
       </div>
 
       {/* Under-researched Areas */}
       {gapAnalysis.under_researched_areas && gapAnalysis.under_researched_areas.length > 0 && (
-        <Card className="p-6 border-orange-200 bg-orange-50/50">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-6 h-6 text-orange-600 flex-shrink-0 mt-1" />
+        <Card className="p-8 bg-gradient-to-br from-orange-50 via-white to-orange-50/50 border-2 border-orange-200 shadow-xl hover:shadow-2xl transition-all duration-300 animate-in" style={{ animationDelay: '0.1s' }}>
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg flex-shrink-0">
+              <AlertTriangle className="w-6 h-6 text-white" />
+            </div>
             <div className="flex-1">
-              <h3 className="text-xl font-semibold text-nasa-darkgray mb-3">
+              <h3 className="text-2xl font-bold text-gray-800 mb-3">
                 Under-Researched Areas
               </h3>
-              <p className="text-gray-600 mb-4">
-                These topics have limited coverage in the current research database
+              <p className="text-gray-600 mb-6 text-base">
+                Topics and areas that need more scientific attention
               </p>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {gapAnalysis.under_researched_areas.map((area, index) => (
                   <div
                     key={index}
-                    className="p-4 bg-white rounded-lg border border-orange-200"
+                    className="group p-5 bg-white rounded-xl border-2 border-orange-200 hover:border-orange-400 hover:shadow-lg transition-all duration-300"
                   >
-                    <div className="flex items-start gap-3">
-                      <Badge variant="outline" className="mt-1 bg-orange-100 text-orange-700 border-orange-300">
-                        Gap #{index + 1}
+                    <div className="flex items-start gap-4">
+                      <Badge className="mt-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0 shadow-md text-sm px-3 py-1">
+                        Area #{index + 1}
                       </Badge>
-                      <p className="flex-1 text-gray-700">{area}</p>
+                      <p className="flex-1 text-gray-700 text-base leading-relaxed font-medium">{area}</p>
                     </div>
                   </div>
                 ))}
@@ -106,27 +112,29 @@ export default function GapsView({ currentPersona }: GapsViewProps) {
 
       {/* Missing Approaches */}
       {gapAnalysis.missing_approaches && gapAnalysis.missing_approaches.length > 0 && (
-        <Card className="p-6 border-blue-200 bg-blue-50/50">
-          <div className="flex items-start gap-3">
-            <Lightbulb className="w-6 h-6 text-blue-600 flex-shrink-0 mt-1" />
+        <Card className="p-8 bg-gradient-to-br from-blue-50 via-white to-blue-50/50 border-2 border-blue-200 shadow-xl hover:shadow-2xl transition-all duration-300 animate-in" style={{ animationDelay: '0.2s' }}>
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg flex-shrink-0">
+              <Lightbulb className="w-6 h-6 text-white" />
+            </div>
             <div className="flex-1">
-              <h3 className="text-xl font-semibold text-nasa-darkgray mb-3">
+              <h3 className="text-2xl font-bold text-gray-800 mb-3">
                 Missing Research Approaches
               </h3>
-              <p className="text-gray-600 mb-4">
-                Methodologies or perspectives that could enhance the research
+              <p className="text-gray-600 mb-6 text-base">
+                Methodologies and techniques that haven't been fully explored
               </p>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {gapAnalysis.missing_approaches.map((approach, index) => (
                   <div
                     key={index}
-                    className="p-4 bg-white rounded-lg border border-blue-200"
+                    className="group p-5 bg-white rounded-xl border-2 border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all duration-300"
                   >
-                    <div className="flex items-start gap-3">
-                      <Badge variant="outline" className="mt-1 bg-blue-100 text-blue-700 border-blue-300">
+                    <div className="flex items-start gap-4">
+                      <Badge className="mt-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 shadow-md text-sm px-3 py-1">
                         Approach #{index + 1}
                       </Badge>
-                      <p className="flex-1 text-gray-700">{approach}</p>
+                      <p className="flex-1 text-gray-700 text-base leading-relaxed font-medium">{approach}</p>
                     </div>
                   </div>
                 ))}
@@ -138,27 +146,29 @@ export default function GapsView({ currentPersona }: GapsViewProps) {
 
       {/* Critical Questions */}
       {gapAnalysis.critical_questions && gapAnalysis.critical_questions.length > 0 && (
-        <Card className="p-6 border-purple-200 bg-purple-50/50">
-          <div className="flex items-start gap-3">
-            <HelpCircle className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
+        <Card className="p-8 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 border-2 border-purple-200 shadow-xl hover:shadow-2xl transition-all duration-300 animate-in" style={{ animationDelay: '0.3s' }}>
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg flex-shrink-0">
+              <HelpCircle className="w-6 h-6 text-white" />
+            </div>
             <div className="flex-1">
-              <h3 className="text-xl font-semibold text-nasa-darkgray mb-3">
+              <h3 className="text-2xl font-bold text-gray-800 mb-3">
                 Critical Unanswered Questions
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-600 mb-6 text-base">
                 Key questions that need to be addressed in future research
               </p>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {gapAnalysis.critical_questions.map((question, index) => (
                   <div
                     key={index}
-                    className="p-4 bg-white rounded-lg border border-purple-200"
+                    className="group p-5 bg-white rounded-xl border-2 border-purple-200 hover:border-purple-400 hover:shadow-lg transition-all duration-300"
                   >
-                    <div className="flex items-start gap-3">
-                      <Badge variant="outline" className="mt-1 bg-purple-100 text-purple-700 border-purple-300">
+                    <div className="flex items-start gap-4">
+                      <Badge className="mt-1 bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 shadow-md text-sm px-3 py-1">
                         Q{index + 1}
                       </Badge>
-                      <p className="flex-1 text-gray-700">{question}</p>
+                      <p className="flex-1 text-gray-700 text-base leading-relaxed font-medium">{question}</p>
                     </div>
                   </div>
                 ))}
@@ -170,27 +180,29 @@ export default function GapsView({ currentPersona }: GapsViewProps) {
 
       {/* Recommendations */}
       {gapAnalysis.recommendations && gapAnalysis.recommendations.length > 0 && (
-        <Card className="p-6 border-green-200 bg-green-50/50">
-          <div className="flex items-start gap-3">
-            <Target className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
+        <Card className="p-8 bg-gradient-to-br from-green-50 via-white to-green-50/50 border-2 border-green-200 shadow-xl hover:shadow-2xl transition-all duration-300 animate-in" style={{ animationDelay: '0.4s' }}>
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg flex-shrink-0">
+              <Target className="w-6 h-6 text-white" />
+            </div>
             <div className="flex-1">
-              <h3 className="text-xl font-semibold text-nasa-darkgray mb-3">
-                Recommendations
+              <h3 className="text-2xl font-bold text-gray-800 mb-3">
+                Strategic Recommendations
               </h3>
-              <p className="text-gray-600 mb-4">
-                Strategic suggestions for future research directions
+              <p className="text-gray-600 mb-6 text-base">
+                Actionable suggestions for future research directions
               </p>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {gapAnalysis.recommendations.map((recommendation, index) => (
                   <div
                     key={index}
-                    className="p-4 bg-white rounded-lg border border-green-200"
+                    className="group p-5 bg-white rounded-xl border-2 border-green-200 hover:border-green-400 hover:shadow-lg transition-all duration-300"
                   >
-                    <div className="flex items-start gap-3">
-                      <Badge variant="outline" className="mt-1 bg-green-100 text-green-700 border-green-300">
+                    <div className="flex items-start gap-4">
+                      <Badge className="mt-1 bg-gradient-to-r from-green-500 to-green-600 text-white border-0 shadow-md text-sm px-3 py-1">
                         #{index + 1}
                       </Badge>
-                      <p className="flex-1 text-gray-700">{recommendation}</p>
+                      <p className="flex-1 text-gray-700 text-base leading-relaxed font-medium">{recommendation}</p>
                     </div>
                   </div>
                 ))}
