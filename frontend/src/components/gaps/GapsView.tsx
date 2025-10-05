@@ -4,7 +4,7 @@ import type { Persona, GapAnalysis } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Lightbulb, AlertTriangle, HelpCircle, Target } from 'lucide-react';
+import { AlertCircle, Lightbulb, AlertTriangle, HelpCircle, Target, BarChart3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface GapsViewProps {
