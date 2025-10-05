@@ -91,7 +91,7 @@ class VectorStore:
             filter=filter_dict
         )
         
-        MIN_SCORE_THRESHOLD = 0.10
+        MIN_SCORE_THRESHOLD = 0.30
         
         filtered_results = [
             {
@@ -148,7 +148,7 @@ class VectorStore:
                 "metadata": metadata
             })
         
-        MIN_SCORE_THRESHOLD = 0.10
+        MIN_SCORE_THRESHOLD = 0.30
         filtered_results = [
             r for r in reranked_results 
             if r["score"] >= MIN_SCORE_THRESHOLD
