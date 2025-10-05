@@ -38,6 +38,23 @@ export interface GapAnalysis {
   missing_approaches: string[];
   critical_questions: string[];
   recommendations: string[];
+  quantitative_scoring: Array<{
+    type: string;
+    area: string;
+    paper_count: number;
+    severity_score: number;
+    reason: string;
+  }>;
+  comparative_analysis: {
+    organism_condition_gaps: Array<{
+      organism: string;
+      condition: string;
+      status: string;
+    }>;
+    total_combinations: number;
+    studied_combinations: number;
+    coverage_percentage: number;
+  };
 }
 
 export interface TrendsData {
