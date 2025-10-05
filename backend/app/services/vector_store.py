@@ -165,24 +165,43 @@ class VectorStore:
         stats = self.index.describe_index_stats()
         return stats
     
-    def get_all_papers_metadata(self, max_fetch: int = 500) -> List[Dict[str, Any]]:
-        """Fetch ALL papers metadata without any score filtering for stats/trends/gaps"""
+    def get_all_papers_metadata(self, limit: int = 10000) -> List[Dict[str, Any]]:
+        """Fetch ALL papers metadata without any score filtering using list+fetch"""
         if not self.index:
             self.initialize_index()
         
-        query_embedding = self.embedding_service.generate_embedding("space biology research")
+        all_results = []
+        seen_ids = set()
         
-        results = self.index.query(
-            vector=query_embedding,
-            top_k=max_fetch,
-            include_metadata=True
-        )
+        # Use list() to get all vector IDs with pagination
+        for ids in self.index.list(limit=limit):
+            # Fetch vectors in batches
+            batch_ids = []
+            for vector_id in ids:
+                if vector_id not in seen_ids:
+                    batch_ids.append(vector_id)
+                    seen_ids.add(vector_id)
+                
+                # Fetch in batches of 100
+                if len(batch_ids) >= 100:
+                    fetched = self.index.fetch(ids=batch_ids)
+                    for vid, vector_data in fetched.vectors.items():
+                        all_results.append({
+                            "id": vid,
+                            "score": 1.0,  # No score for list operation
+                            "metadata": vector_data.metadata
+                        })
+                    batch_ids = []
+            
+            # Fetch remaining batch
+            if batch_ids:
+                fetched = self.index.fetch(ids=batch_ids)
+                for vid, vector_data in fetched.vectors.items():
+                    all_results.append({
+                        "id": vid,
+                        "score": 1.0,
+                        "metadata": vector_data.metadata
+                    })
         
-        return [
-            {
-                "id": match.id,
-                "score": match.score,
-                "metadata": match.metadata
-            }
-            for match in results.matches
-        ]
+        print(f"Fetched {len(all_results)} total vectors from Pinecone")
+        return all_results
