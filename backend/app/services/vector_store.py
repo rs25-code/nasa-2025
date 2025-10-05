@@ -91,7 +91,7 @@ class VectorStore:
             filter=filter_dict
         )
         
-        MIN_SCORE_THRESHOLD = 0.30
+        MIN_SCORE_THRESHOLD = 0.10
         
         filtered_results = [
             {
@@ -148,7 +148,7 @@ class VectorStore:
                 "metadata": metadata
             })
         
-        MIN_SCORE_THRESHOLD = 0.30
+        MIN_SCORE_THRESHOLD = 0.10
         filtered_results = [
             r for r in reranked_results 
             if r["score"] >= MIN_SCORE_THRESHOLD
@@ -170,7 +170,6 @@ class VectorStore:
         if not self.index:
             self.initialize_index()
         
-        # Use multiple diverse queries to cover all papers
         diverse_queries = [
             "space biology research",
             "microgravity effects",
@@ -190,10 +189,9 @@ class VectorStore:
         for query_text in diverse_queries:
             query_embedding = self.embedding_service.generate_embedding(query_text)
             
-            # Fetch maximum possible results
             results = self.index.query(
                 vector=query_embedding,
-                top_k=10000,  # Pinecone max
+                top_k=10000,
                 include_metadata=True
             )
             
@@ -206,9 +204,8 @@ class VectorStore:
                         "metadata": match.metadata
                     })
             
-            # If we've seen the same IDs multiple times, we've likely covered everything
             if len(all_results) >= limit:
                 break
         
-        print(f"Fetched {len(all_results)} unique vectors using {len(diverse_queries)} queries")
+        print(f"Fetched {len(all_results)} unique vectors using multiple queries")
         return all_results
