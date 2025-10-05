@@ -11,9 +11,10 @@ import { Search, TrendingUp, Target } from 'lucide-react';
 interface LayoutProps {
   currentPersona: Persona;
   onPersonaChange: (persona: Persona) => void;
+  onBackToLanding?: () => void;
 }
 
-export default function Layout({ currentPersona, onPersonaChange }: LayoutProps) {
+export default function Layout({ currentPersona, onPersonaChange, onBackToLanding }: LayoutProps) {
   const [activeTab, setActiveTab] = useState('search');
 
   return (
@@ -22,6 +23,7 @@ export default function Layout({ currentPersona, onPersonaChange }: LayoutProps)
       <Header 
         currentPersona={currentPersona}
         onPersonaChange={onPersonaChange}
+        onBackToLanding={onBackToLanding}
       />
       
       <main className="container mx-auto px-6 py-8">
@@ -53,26 +55,19 @@ export default function Layout({ currentPersona, onPersonaChange }: LayoutProps)
             </TabsList>
           </div>
 
-          <TabsContent value="search" className="mt-0 animate-in">
+          <TabsContent value="search" className="mt-0">
             <SearchView currentPersona={currentPersona} />
           </TabsContent>
 
-          <TabsContent value="trends" className="mt-0 animate-in">
+          <TabsContent value="trends" className="mt-0">
             <TrendsView currentPersona={currentPersona} />
           </TabsContent>
 
-          <TabsContent value="gaps" className="mt-0 animate-in">
+          <TabsContent value="gaps" className="mt-0">
             <GapsView currentPersona={currentPersona} />
           </TabsContent>
         </Tabs>
       </main>
-
-      {/* Decorative footer */}
-      <footer className="mt-20 py-8 border-t border-gray-200 bg-white/50 backdrop-blur-sm">
-        <div className="container mx-auto px-6 text-center text-gray-600 text-sm">
-          <p>Powered by NASA Space Biology Research | Built for Space Apps Challenge 2025</p>
-        </div>
-      </footer>
     </div>
   );
 }
