@@ -44,7 +44,38 @@ export interface TrendsData {
   research_by_year: Record<string, number>;
   top_organisms: Record<string, number>;
   top_topics: Record<string, number>;
-  emerging_areas: string[];
+  emerging_areas: Array<{
+    topic: string;
+    recent_papers: number;
+    growth_rate: number;
+    total_papers: number;
+  }>;
+  temporal_analysis: {
+    growth_rate: number;
+    trend: string;
+    peak_year: string;
+    peak_papers: number;
+  };
+  collaboration_network: Array<{
+    organism1: string;
+    organism2: string;
+    co_occurrences: number;
+    strength: number;
+  }>;
+  organism_trends_by_year: Array<{
+    organism: string;
+    total_papers: number;
+    trend_data: Record<string, number>;
+    velocity: number;
+    status: string;
+  }>;
+  topic_evolution: Array<{
+    topic: string;
+    timeline: Record<string, number>;
+    recent_momentum: number;
+    first_seen: string;
+    last_seen: string;
+  }>;
 }
 
 export interface FilterOptions {
