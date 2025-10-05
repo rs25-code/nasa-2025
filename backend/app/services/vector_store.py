@@ -178,9 +178,11 @@ class VectorStore:
         
         return filtered_results[:top_k]
     
+
     def get_all_metadata(self) -> Dict[str, Any]:
         if not self.index:
             self.initialize_index()
-        
+    
         stats = self.index.describe_index_stats()
+        print("Raw Pinecone stats:", stats)  # DEBUG
         return stats
