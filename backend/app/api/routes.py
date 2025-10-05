@@ -196,7 +196,7 @@ async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
         results = data.get("results", [])
 
         if not results:
-            raw_results = vector_store.search(query="space biology research", top_k=50)
+            raw_results = vector_store.search_with_reranking(query="space biology research", top_k=50)
             all_results = []
             for r in raw_results:
                 metadata = r.get("metadata", {})
@@ -339,7 +339,7 @@ def identify_comparative_gaps(metadata_list: list[dict]) -> dict:
 @router.get("/trends")
 async def analyze_trends() -> Dict[str, Any]:
     try:
-        results = vector_store.search(query="space biology research overview", top_k=100)
+        results = vector_store.search_with_reranking(query="space biology research overview", top_k=100)
 
         years = []
         organisms = []
@@ -530,7 +530,7 @@ def identify_emerging_areas(topic_counts: Counter, year_counts: Counter, topic_y
 @router.get("/filters")
 async def get_available_filters() -> Dict[str, Any]:
     try:
-        results = vector_store.search(query="space biology", top_k=100)
+        results = vector_store.search_with_reranking(query="space biology", top_k=100)
         
         years = set()
         organisms = set()
@@ -558,7 +558,7 @@ async def get_statistics() -> Dict[str, Any]:
     try:
         stats = vector_store.get_all_metadata()
         
-        results = vector_store.search(query="space biology", top_k=100)
+        results = vector_store.search_with_reranking(query="space biology", top_k=100)
         
         paper_ids = set()
         for r in results:
