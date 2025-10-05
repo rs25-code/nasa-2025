@@ -55,6 +55,10 @@ export default function SearchView({ currentPersona }: SearchViewProps) {
     }
   };
 
+  const handleSimilarPapersFound = (similarPapers: SearchResult[]) => {
+    setResults(similarPapers);
+  };
+
   return (
     <div className="space-y-6">
       {/* Search Bar */}
@@ -83,11 +87,13 @@ export default function SearchView({ currentPersona }: SearchViewProps) {
             />
           </div>
 
-          {/* Results */}
+          {/* Results - FIXED: Added currentPersona prop */}
           <div className="lg:col-span-3">
             <ResultsList 
               results={results}
               isLoading={isLoading}
+              currentPersona={currentPersona}
+              onSimilarPapersFound={handleSimilarPapersFound}
             />
           </div>
         </div>
