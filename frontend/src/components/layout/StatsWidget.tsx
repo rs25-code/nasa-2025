@@ -1,22 +1,74 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getDatabaseStats } from '@/services/api';
 import type { DatabaseStats } from '@/types';
 import { Database, FileText, TrendingUp } from 'lucide-react';
 
+// Cache stats for 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000;
+let cachedStats: { data: DatabaseStats; timestamp: number } | null = null;
+
 export default function StatsWidget() {
   const [stats, setStats] = useState<DatabaseStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const hasFetched = useRef(false);
 
   useEffect(() => {
+    // Only fetch once per mount
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+
     const loadStats = async () => {
       try {
+        // Check cache first
+        const now = Date.now();
+        if (cachedStats && (now - cachedStats.timestamp < CACHE_DURATION)) {
+          console.log('Using cached stats');
+          setStats(cachedStats.data);
+          setIsLoading(false);
+          return;
+        }
+
+        // Fetch fresh data
         const data = await getDatabaseStats();
+        
+        // Update cache
+        cachedStats = { data, timestamp: now };
+        
         setStats(data);
       } catch (error) {
         console.error('Failed to load stats:', error);
+        // Show placeholder on error
+        setStats({
+          total_papers: 0,
+          total_vectors: 0,
+          index_fullness: 0
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
+    
     loadStats();
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg border border-white/20 backdrop-blur-sm animate-pulse">
+          <div className="w-3.5 h-3.5 bg-white/20 rounded" />
+          <div className="w-12 h-4 bg-white/20 rounded" />
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg border border-white/20 backdrop-blur-sm animate-pulse">
+          <div className="w-3.5 h-3.5 bg-white/20 rounded" />
+          <div className="w-16 h-4 bg-white/20 rounded" />
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg border border-white/20 backdrop-blur-sm animate-pulse">
+          <div className="w-3.5 h-3.5 bg-white/20 rounded" />
+          <div className="w-12 h-4 bg-white/20 rounded" />
+        </div>
+      </div>
+    );
+  }
 
   if (!stats) return null;
 
