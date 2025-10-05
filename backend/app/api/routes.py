@@ -161,19 +161,22 @@ async def analyze_consensus(data: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def safe_int_year(year_value) -> Optional[int]:
+    """Safely convert year to int, handling floats and strings"""
+    if year_value is None:
+        return None
+    try:
+        if isinstance(year_value, str):
+            year_value = float(year_value)
+        return int(year_value)
+    except (ValueError, TypeError):
+        return None
+
 @router.post("/gaps")
 async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        results = data.get("results", [])
-
-        if not results:
-            raw_results = vector_store.get_all_papers_metadata(max_fetch=100)
-            all_results = []
-            for r in raw_results:
-                metadata = r.get("metadata", {})
-                all_results.append(metadata)
-        else:
-            all_results = [r.get("metadata", {}) for r in results]
+        raw_results = vector_store.get_all_papers_metadata(max_fetch=500)
+        all_results = [r.get("metadata", {}) for r in raw_results]
 
         under_researched = identify_coverage_gaps(all_results)
         comparative_gaps = identify_comparative_gaps(all_results)
@@ -225,8 +228,9 @@ def identify_coverage_gaps(metadata_list: list[dict]) -> list[dict]:
             for org in meta["organisms"]:
                 organism_coverage[org] = organism_coverage.get(org, 0) + 1
         
-        if meta.get("year"):
-            year_coverage[str(meta["year"])] = year_coverage.get(str(meta["year"]), 0) + 1
+        year = safe_int_year(meta.get("year"))
+        if year:
+            year_coverage[year] = year_coverage.get(year, 0) + 1
         
         if meta.get("keywords"):
             for kw in meta["keywords"]:
@@ -258,11 +262,14 @@ def identify_coverage_gaps(metadata_list: list[dict]) -> list[dict]:
                 "reason": "Minimal research coverage"
             })
     
-    sorted_years = sorted(year_coverage.keys())
-    if len(sorted_years) >= 3:
+    if len(year_coverage) >= 3:
+        sorted_years = sorted(year_coverage.keys())
         recent_years = sorted_years[-3:]
-        for year in range(int(sorted_years[0]), int(sorted_years[-1]) + 1):
-            if str(year) not in year_coverage and str(year) not in recent_years:
+        min_year = sorted_years[0]
+        max_year = sorted_years[-1]
+        
+        for year in range(min_year, max_year + 1):
+            if year not in year_coverage and year not in recent_years:
                 gaps.append({
                     "type": "temporal",
                     "area": f"Research from {year}",
@@ -315,7 +322,7 @@ def calculate_temporal_trends(year_counts: Counter, organism_year_map: dict, top
         return {
             "growth_rate": 0,
             "trend": "insufficient_data",
-            "peak_year": years[0] if years else "unknown",
+            "peak_year": str(years[0]) if years else "unknown",
             "peak_papers": year_counts[years[0]] if years else 0
         }
     
@@ -329,7 +336,7 @@ def calculate_temporal_trends(year_counts: Counter, organism_year_map: dict, top
     return {
         "growth_rate": round(growth_rate, 2),
         "trend": "growing" if growth_rate > 10 else "stable" if growth_rate > -10 else "declining",
-        "peak_year": peak_year,
+        "peak_year": str(peak_year),
         "peak_papers": year_counts[peak_year]
     }
 
@@ -386,7 +393,7 @@ def identify_emerging_areas(topic_counts: Counter, year_counts: Counter, topic_y
 @router.get("/filters")
 async def get_available_filters() -> Dict[str, Any]:
     try:
-        results = vector_store.get_all_papers_metadata(max_fetch=100)
+        results = vector_store.get_all_papers_metadata(max_fetch=500)
         
         years = set()
         organisms = set()
@@ -394,8 +401,9 @@ async def get_available_filters() -> Dict[str, Any]:
         
         for r in results:
             metadata = r.get("metadata", {})
-            if metadata.get("year"):
-                years.add(metadata["year"])
+            year = safe_int_year(metadata.get("year"))
+            if year:
+                years.add(year)
             if metadata.get("organisms"):
                 organisms.update(metadata["organisms"])
             if metadata.get("section"):
@@ -414,9 +422,6 @@ async def get_statistics() -> Dict[str, Any]:
     try:
         stats = vector_store.get_all_metadata()
         
-        print("Stats structure:", stats)
-        
-        # Handle both dict and object response from Pinecone
         if isinstance(stats, dict):
             total_vectors = (
                 stats.get("total_vector_count") or 
@@ -431,14 +436,15 @@ async def get_statistics() -> Dict[str, Any]:
                     total_vectors = ns.vector_count
             index_fullness = getattr(stats, 'index_fullness', 0.0)
         
-        # Get unique papers WITHOUT score filtering
-        results = vector_store.get_all_papers_metadata(max_fetch=200)
+        results = vector_store.get_all_papers_metadata(max_fetch=500)
         
         paper_ids = set()
         for r in results:
             paper_id = r.get("metadata", {}).get("paper_id")
             if paper_id:
                 paper_ids.add(paper_id)
+        
+        print(f"Stats: {total_vectors} vectors, {len(paper_ids)} unique papers")
         
         return {
             "total_vectors": total_vectors,
@@ -454,7 +460,7 @@ async def get_statistics() -> Dict[str, Any]:
 @router.get("/trends")
 async def analyze_trends() -> Dict[str, Any]:
     try:
-        results = vector_store.get_all_papers_metadata(max_fetch=100)
+        results = vector_store.get_all_papers_metadata(max_fetch=500)
 
         years = []
         organisms = []
@@ -465,7 +471,7 @@ async def analyze_trends() -> Dict[str, Any]:
 
         for r in results:
             metadata = r.get("metadata", {})
-            year = metadata.get("year")
+            year = safe_int_year(metadata.get("year"))
             
             if year:
                 years.append(year)
@@ -498,8 +504,12 @@ async def analyze_trends() -> Dict[str, Any]:
         collaboration_network = calculate_collaboration_network(organism_pair_counts, organism_counts)
         emerging = identify_emerging_areas(topic_counts, year_counts, topic_year_map)
 
+        research_by_year = {str(k): v for k, v in year_counts.items()}
+
+        print(f"Trends: {len(year_counts)} years, {len(organism_counts)} organisms, {len(topic_counts)} topics")
+
         return {
-            "research_by_year": dict(year_counts),
+            "research_by_year": research_by_year,
             "top_organisms": dict(organism_counts.most_common(10)),
             "top_topics": dict(topic_counts.most_common(10)),
             "emerging_areas": emerging,
