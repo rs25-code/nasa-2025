@@ -558,16 +558,27 @@ async def get_statistics() -> Dict[str, Any]:
     try:
         stats = vector_store.get_all_metadata()
         
+        # Debug: print what we got
+        print("Stats structure:", stats)
+        
         results = vector_store.search_with_reranking(query="space biology", top_k=100)
         
         paper_ids = set()
         for r in results:
             paper_ids.add(r.get("metadata", {}).get("paper_id"))
         
+        # Try multiple possible keys
+        total_vectors = (
+            stats.get("total_vector_count") or 
+            stats.get("total_count") or
+            stats.get("namespaces", {}).get("", {}).get("vector_count", 0)
+        )
+        
         return {
-            "total_vectors": stats.get("total_vector_count", 0),
+            "total_vectors": total_vectors,
             "total_papers": len(paper_ids),
-            "index_fullness": stats.get("index_fullness", 0)
+            "index_fullness": stats.get("index_fullness", 0.0)
         }
     except Exception as e:
+        print(f"Stats error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
