@@ -13,9 +13,8 @@ llm_service = LLMService()
 @router.post("/search")
 async def search_papers(query: SearchQuery) -> Dict[str, Any]:
     """
-    Search for papers and TRANSFORM results to match frontend expectations.
-    Frontend expects: {id, score, text, metadata: {file, year, organisms, ...}}
-    Pinecone returns: {id, score, metadata: {text, file, year, organisms, ...}}
+    Search for papers with improved relevance scoring.
+    Uses reranking for better results.
     """
     try:
         filter_dict = None
@@ -28,13 +27,16 @@ async def search_papers(query: SearchQuery) -> Dict[str, Any]:
             if query.filters.get("section"):
                 filter_dict["section"] = {"$eq": query.filters["section"]}
         
-        raw_results = vector_store.search(
+        # Use improved search with reranking
+        # Boost abstract and results sections for better relevance
+        raw_results = vector_store.search_with_reranking(
             query=query.query,
             top_k=query.top_k,
-            filter_dict=filter_dict
+            filter_dict=filter_dict,
+            boost_sections=["abstract", "results", "conclusion"]
         )
         
-        # CRITICAL FIX: Transform results to match frontend expectations
+        # Transform results to match frontend expectations
         transformed_results = []
         for r in raw_results:
             metadata = r.get("metadata", {})
@@ -44,26 +46,30 @@ async def search_papers(query: SearchQuery) -> Dict[str, Any]:
             
             # Create a clean metadata dict without text
             clean_metadata = {
-                "file": metadata.get("title", "Unknown") + ".pdf",  # Convert title to filename
+                "file": metadata.get("title", "Unknown") + ".pdf",
                 "page": metadata.get("chunk_index", 0),
                 "chunk": metadata.get("chunk_index", 0),
                 "year": metadata.get("year"),
                 "organisms": metadata.get("organisms", []),
                 "section": metadata.get("section", ""),
                 "paper_id": metadata.get("paper_id", ""),
+                "keywords": metadata.get("keywords", []),
+                "experiment_type": metadata.get("experiment_type", ""),
+                "space_conditions": metadata.get("space_conditions", [])
             }
             
             transformed_results.append({
                 "id": r.get("id"),
                 "score": r.get("score"),
-                "text": text,  # Text at top level
-                "metadata": clean_metadata  # Clean metadata without text
+                "text": text,
+                "metadata": clean_metadata
             })
         
         print(f"Search returned {len(transformed_results)} results")
         if transformed_results:
-            print(f"Sample result structure: {list(transformed_results[0].keys())}")
-            print(f"Sample has text: {bool(transformed_results[0].get('text'))}")
+            avg_score = sum(r['score'] for r in transformed_results) / len(transformed_results)
+            print(f"Average relevance score: {avg_score:.3f}")
+            print(f"Top score: {transformed_results[0]['score']:.3f}")
         
         return {
             "results": transformed_results,
