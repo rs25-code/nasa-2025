@@ -19,23 +19,47 @@ def main():
     print(f"Found {len(pdf_files)} PDF files to process")
     print("-" * 60)
     
+    # Check if user wants to reprocess (clear cache)
+    reprocess = input("Clear cache and reprocess all PDFs? (y/N): ").lower() == 'y'
+    if reprocess:
+        cache_dir = Path("data/processed")
+        if cache_dir.exists():
+            for cache_file in cache_dir.glob("*.json"):
+                cache_file.unlink()
+            print("✓ Cache cleared")
+    
     processor = PDFProcessor()
-    print("Processing PDFs and extracting metadata...")
+    print("\nProcessing PDFs with improved chunking strategy...")
+    print("- Using sentence-aware chunking for semantic coherence")
+    print("- Storing 2x more text in metadata for context")
+    print("- Enhanced metadata extraction with more details")
+    print("-" * 60)
+    
     papers_data = processor.process_all_pdfs(pdf_directory)
     
     print("-" * 60)
     print(f"Successfully processed {len(papers_data)} papers")
-    print("Uploading to Pinecone...")
     
+    # Show statistics
+    total_chunks = sum(len(chunks) for _, chunks in papers_data)
+    avg_chunks = total_chunks / len(papers_data) if papers_data else 0
+    
+    print(f"Total chunks created: {total_chunks}")
+    print(f"Average chunks per paper: {avg_chunks:.1f}")
+    
+    print("\nUploading to Pinecone...")
     vector_store = VectorStore()
     vector_store.upsert_papers(papers_data)
     
     print("-" * 60)
-    print("✓ Ingestion complete!")
+    print("✓ Ingestion complete with improved quality!")
     print(f"Total papers processed: {len(papers_data)}")
-    
-    total_chunks = sum(len(chunks) for _, chunks in papers_data)
-    print(f"Total chunks created: {total_chunks}")
+    print(f"Total chunks uploaded: {total_chunks}")
+    print("\nExpected improvements:")
+    print("  • Better semantic coherence in chunks")
+    print("  • Richer context with 2x text storage")
+    print("  • More comprehensive metadata")
+    print("  • Higher search relevance scores (>0.7)")
 
 if __name__ == "__main__":
     main()
