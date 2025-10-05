@@ -91,7 +91,7 @@ class VectorStore:
             filter=filter_dict
         )
         
-        MIN_SCORE_THRESHOLD = 0.35
+        MIN_SCORE_THRESHOLD = 0.30
         
         filtered_results = [
             {
@@ -134,8 +134,13 @@ class VectorStore:
                 score *= 1.15
             
             year = metadata.get("year")
-            if year and year >= 2020:
-                score *= 1.05
+            if year:
+                try:
+                    year_int = int(float(str(year)))
+                    if year_int >= 2020:
+                        score *= 1.05
+                except (ValueError, TypeError):
+                    pass
             
             reranked_results.append({
                 "id": match.id,
@@ -143,7 +148,7 @@ class VectorStore:
                 "metadata": metadata
             })
         
-        MIN_SCORE_THRESHOLD = 0.35
+        MIN_SCORE_THRESHOLD = 0.30
         filtered_results = [
             r for r in reranked_results 
             if r["score"] >= MIN_SCORE_THRESHOLD
@@ -160,12 +165,12 @@ class VectorStore:
         stats = self.index.describe_index_stats()
         return stats
     
-    def get_all_papers_metadata(self, max_fetch: int = 200) -> List[Dict[str, Any]]:
-        """Fetch metadata for all papers without score filtering"""
+    def get_all_papers_metadata(self, max_fetch: int = 500) -> List[Dict[str, Any]]:
+        """Fetch ALL papers metadata without any score filtering for stats/trends/gaps"""
         if not self.index:
             self.initialize_index()
         
-        query_embedding = self.embedding_service.generate_embedding("research")
+        query_embedding = self.embedding_service.generate_embedding("space biology research")
         
         results = self.index.query(
             vector=query_embedding,
