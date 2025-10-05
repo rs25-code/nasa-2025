@@ -12,6 +12,11 @@ llm_service = LLMService()
 
 @router.post("/search")
 async def search_papers(query: SearchQuery) -> Dict[str, Any]:
+    """
+    Search for papers and TRANSFORM results to match frontend expectations.
+    Frontend expects: {id, score, text, metadata: {file, year, organisms, ...}}
+    Pinecone returns: {id, score, metadata: {text, file, year, organisms, ...}}
+    """
     try:
         filter_dict = None
         if query.filters:
@@ -23,26 +28,69 @@ async def search_papers(query: SearchQuery) -> Dict[str, Any]:
             if query.filters.get("section"):
                 filter_dict["section"] = {"$eq": query.filters["section"]}
         
-        results = vector_store.search(
+        raw_results = vector_store.search(
             query=query.query,
             top_k=query.top_k,
             filter_dict=filter_dict
         )
         
+        # CRITICAL FIX: Transform results to match frontend expectations
+        transformed_results = []
+        for r in raw_results:
+            metadata = r.get("metadata", {})
+            
+            # Extract text from metadata and remove it
+            text = metadata.get("text", "")
+            
+            # Create a clean metadata dict without text
+            clean_metadata = {
+                "file": metadata.get("title", "Unknown") + ".pdf",  # Convert title to filename
+                "page": metadata.get("chunk_index", 0),
+                "chunk": metadata.get("chunk_index", 0),
+                "year": metadata.get("year"),
+                "organisms": metadata.get("organisms", []),
+                "section": metadata.get("section", ""),
+                "paper_id": metadata.get("paper_id", ""),
+            }
+            
+            transformed_results.append({
+                "id": r.get("id"),
+                "score": r.get("score"),
+                "text": text,  # Text at top level
+                "metadata": clean_metadata  # Clean metadata without text
+            })
+        
+        print(f"Search returned {len(transformed_results)} results")
+        if transformed_results:
+            print(f"Sample result structure: {list(transformed_results[0].keys())}")
+            print(f"Sample has text: {bool(transformed_results[0].get('text'))}")
+        
         return {
-            "results": results,
-            "count": len(results),
+            "results": transformed_results,
+            "count": len(transformed_results),
             "query": query.query
         }
     except Exception as e:
+        print(f"Error in search_papers: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/summarize")
 async def summarize_results(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate persona-specific summaries from search results.
+    Results from /search have text at top level.
+    """
     try:
         query = data.get("query", "")
         results = data.get("results", [])
         persona = data.get("persona", "scientist")
+        
+        print(f"=== SUMMARIZE REQUEST ===")
+        print(f"Query: {query}")
+        print(f"Persona: {persona}")
+        print(f"Number of results: {len(results)}")
         
         if not results:
             return {
@@ -51,7 +99,27 @@ async def summarize_results(data: Dict[str, Any]) -> Dict[str, Any]:
                 "persona": persona
             }
         
-        texts = [r.get("metadata", {}).get("text", "") for r in results[:5]]
+        # Extract text from results
+        texts = []
+        for i, r in enumerate(results[:5]):
+            # Text should be at top level after transformation
+            text = r.get("text", "")
+            
+            print(f"Result {i}: has 'text' key: {bool(text)}, length: {len(text) if text else 0}")
+            
+            if text and text.strip():
+                texts.append(text)
+        
+        print(f"Extracted {len(texts)} valid texts for summarization")
+        
+        if not texts:
+            print("ERROR: No valid texts found in results!")
+            print(f"Sample result keys: {list(results[0].keys()) if results else 'No results'}")
+            return {
+                "summary": "Unable to extract text from results. Please try searching again.",
+                "key_points": [],
+                "persona": persona
+            }
         
         context_map = {
             "scientist": "Provide a detailed scientific summary highlighting methodology, findings, and implications for future research.",
@@ -60,7 +128,11 @@ async def summarize_results(data: Dict[str, Any]) -> Dict[str, Any]:
         }
         
         context = context_map.get(persona, context_map["scientist"])
+        
+        print(f"Calling LLM service with {len(texts)} texts...")
         result = llm_service.generate_summary(texts, context)
+        
+        print(f"LLM returned summary: {bool(result.get('summary'))}")
         
         return {
             "summary": result.get("summary", ""),
@@ -69,6 +141,9 @@ async def summarize_results(data: Dict[str, Any]) -> Dict[str, Any]:
             "persona": persona
         }
     except Exception as e:
+        print(f"Error in summarize_results: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/consensus")
@@ -80,7 +155,12 @@ async def analyze_consensus(data: Dict[str, Any]) -> Dict[str, Any]:
         if not results:
             return {"error": "No results to analyze"}
         
-        texts = [r.get("metadata", {}).get("text", "") for r in results[:8]]
+        # Extract text from top level
+        texts = []
+        for r in results[:8]:
+            text = r.get("text", "")
+            if text and text.strip():
+                texts.append(text)
         
         analysis = llm_service.analyze_consensus(texts, topic)
         
@@ -110,11 +190,26 @@ async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
         results = data.get("results", [])
 
         if not results:
-            all_results = vector_store.search(query="space biology research", top_k=50)
+            # Get fresh results from vector store
+            raw_results = vector_store.search(query="space biology research", top_k=50)
+            # These need transformation too!
+            all_results = []
+            for r in raw_results:
+                metadata = r.get("metadata", {})
+                all_results.append({
+                    "text": metadata.get("text", ""),
+                    "metadata": metadata
+                })
         else:
             all_results = results
 
-        texts = [r.get("metadata", {}).get("text", "") for r in all_results[:15]]
+        # Extract text from top level
+        texts = []
+        for r in all_results[:15]:
+            text = r.get("text", "")
+            if text and text.strip():
+                texts.append(text)
+        
         metadata_list = [r.get("metadata", {}) for r in all_results]
 
         gaps = llm_service.identify_gaps(texts, metadata_list)
