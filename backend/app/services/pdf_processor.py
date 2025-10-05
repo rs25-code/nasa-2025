@@ -1,6 +1,7 @@
 import fitz
 import json
 import os
+import re
 from typing import Dict, List, Optional
 from pathlib import Path
 from app.models.schemas import PaperMetadata, ChunkMetadata
@@ -35,17 +36,19 @@ class PDFProcessor:
             full_text.append(text)
             
             text_lower = text.lower()
-            if "abstract" in text_lower and not sections["abstract"]:
+            
+            # Better section detection with word boundaries
+            if re.search(r'\babstract\b', text_lower) and not sections["abstract"]:
                 current_section = "abstract"
-            elif "introduction" in text_lower:
+            elif re.search(r'\bintroduction\b', text_lower):
                 current_section = "introduction"
-            elif "method" in text_lower or "material" in text_lower:
+            elif re.search(r'\b(method|material|procedure|experimental)\b', text_lower):
                 current_section = "methods"
-            elif "result" in text_lower:
+            elif re.search(r'\bresult', text_lower):
                 current_section = "results"
-            elif "discussion" in text_lower:
+            elif re.search(r'\bdiscussion\b', text_lower):
                 current_section = "discussion"
-            elif "conclusion" in text_lower:
+            elif re.search(r'\b(conclusion|summary)\b', text_lower):
                 current_section = "conclusion"
             
             if current_section and current_section in sections:
@@ -59,24 +62,36 @@ class PDFProcessor:
         }
     
     def extract_metadata_with_llm(self, text_content: Dict[str, str], filename: str) -> PaperMetadata:
+        # Use more content for better extraction
+        full_text_sample = text_content['full_text'][:12000]
+        
+        # Include abstract separately if available for better context
+        abstract_context = ""
+        if text_content.get('abstract'):
+            abstract_context = f"\n\nAbstract section:\n{text_content['abstract'][:2000]}"
+        
         prompt = f"""
-Extract metadata from this research paper. Return ONLY valid JSON with no markdown formatting.
+Extract comprehensive metadata from this space biology research paper. Be thorough and specific.
 
-Paper text (first 8000 chars):
-{text_content['full_text'][:8000]}
+Paper text (first 12000 chars):
+{full_text_sample}
+{abstract_context}
 
-Extract:
+Extract with high precision:
 {{
-    "title": "exact paper title",
-    "authors": ["list", "of", "authors"],
-    "year": publication_year_as_int_or_null,
-    "abstract": "the abstract text",
-    "organisms": ["list of organisms studied, e.g., mice, plants, bacteria"],
-    "keywords": ["key", "research", "topics"],
-    "experiment_type": "brief description of experiment type",
-    "space_conditions": ["conditions like microgravity, radiation, etc."],
-    "findings_summary": "2-3 sentence summary of key findings"
+    "title": "exact full paper title",
+    "authors": ["full author names in order"],
+    "year": publication_year_as_integer_or_null,
+    "abstract": "complete abstract text, or first substantial paragraph if abstract not labeled",
+    "organisms": ["specific organisms studied - mice, rats, C. elegans, Arabidopsis, bacteria species, etc."],
+    "keywords": ["specific technical terms, phenomena studied, biological processes, experimental conditions"],
+    "experiment_type": "detailed description of experimental approach and methodology",
+    "space_conditions": ["specific conditions - microgravity, simulated microgravity, radiation exposure type, spaceflight duration, etc."],
+    "findings_summary": "3-4 sentence summary of major findings and their implications"
 }}
+
+Focus on space biology terms: microgravity, spaceflight, radiation, bone loss, muscle atrophy, gene expression, adaptation, countermeasures, ISS, etc.
+Return ONLY valid JSON with no markdown formatting.
 """
         
         response = self.llm_service.extract_structured_data(prompt)
@@ -106,54 +121,125 @@ Extract:
         chunks = []
         chunk_idx = 0
         
-        if metadata.abstract:
+        # Create a rich abstract chunk with more context
+        if metadata.abstract and len(metadata.abstract) > 50:
+            # Combine abstract with findings for richer semantic content
+            abstract_chunk = f"Title: {metadata.title}\n\nAbstract: {metadata.abstract}"
+            if metadata.findings_summary:
+                abstract_chunk += f"\n\nKey Findings: {metadata.findings_summary}"
+            
             chunks.append(ChunkMetadata(
                 paper_id=metadata.paper_id,
                 chunk_index=chunk_idx,
                 chunk_type="abstract",
-                text=metadata.abstract,
+                text=abstract_chunk,
                 metadata={
                     "title": metadata.title,
                     "authors": metadata.authors,
                     "year": metadata.year,
                     "organisms": metadata.organisms,
-                    "section": "abstract"
+                    "keywords": metadata.keywords,
+                    "section": "abstract",
+                    "experiment_type": metadata.experiment_type,
+                    "space_conditions": metadata.space_conditions
                 }
             ))
             chunk_idx += 1
         
+        # Process each section with sentence-aware chunking
         for section_name in ["introduction", "methods", "results", "discussion", "conclusion"]:
             section_text = text_content.get(section_name, "")
             if section_text and len(section_text) > 100:
-                section_chunks = self._split_text(section_text, settings.chunk_size, settings.chunk_overlap)
+                # Add section header context to each chunk
+                section_header = f"[{section_name.upper()} SECTION from: {metadata.title}]\n\n"
+                
+                section_chunks = self._split_text_semantically(
+                    section_text, 
+                    target_size=800,  # Slightly smaller for more focused chunks
+                    overlap=150
+                )
                 
                 for i, chunk_text in enumerate(section_chunks):
+                    # Add context to each chunk
+                    contextual_chunk = section_header + chunk_text
+                    
                     chunks.append(ChunkMetadata(
                         paper_id=metadata.paper_id,
                         chunk_index=chunk_idx,
                         chunk_type=section_name,
-                        text=chunk_text,
+                        text=contextual_chunk,
                         metadata={
                             "title": metadata.title,
                             "authors": metadata.authors,
                             "year": metadata.year,
                             "organisms": metadata.organisms,
+                            "keywords": metadata.keywords,
                             "section": section_name,
-                            "section_chunk": i
+                            "section_chunk": i,
+                            "experiment_type": metadata.experiment_type,
+                            "space_conditions": metadata.space_conditions
                         }
                     ))
                     chunk_idx += 1
         
         return chunks
     
-    def _split_text(self, text: str, chunk_size: int, overlap: int) -> List[str]:
-        words = text.split()
-        chunks = []
+    def _split_text_semantically(self, text: str, target_size: int, overlap: int) -> List[str]:
+        """
+        Split text at sentence boundaries for better semantic coherence.
+        This preserves complete thoughts and improves embedding quality.
+        """
+        # Split into sentences using multiple delimiters
+        sentences = re.split(r'(?<=[.!?])\s+', text)
         
-        for i in range(0, len(words), chunk_size - overlap):
-            chunk = " ".join(words[i:i + chunk_size])
-            if chunk:
-                chunks.append(chunk)
+        chunks = []
+        current_chunk = []
+        current_size = 0
+        
+        for sentence in sentences:
+            sentence_words = len(sentence.split())
+            
+            # If single sentence is too long, split it by words
+            if sentence_words > target_size:
+                if current_chunk:
+                    chunks.append(" ".join(current_chunk))
+                    current_chunk = []
+                    current_size = 0
+                
+                # Split long sentence by words
+                words = sentence.split()
+                for i in range(0, len(words), target_size - overlap):
+                    chunk = " ".join(words[i:i + target_size])
+                    if chunk:
+                        chunks.append(chunk)
+                continue
+            
+            # Add sentence to current chunk
+            if current_size + sentence_words <= target_size:
+                current_chunk.append(sentence)
+                current_size += sentence_words
+            else:
+                # Start new chunk
+                if current_chunk:
+                    chunks.append(" ".join(current_chunk))
+                
+                # Keep last few sentences for overlap (semantic continuity)
+                overlap_sentences = []
+                overlap_size = 0
+                for s in reversed(current_chunk):
+                    s_words = len(s.split())
+                    if overlap_size + s_words <= overlap:
+                        overlap_sentences.insert(0, s)
+                        overlap_size += s_words
+                    else:
+                        break
+                
+                current_chunk = overlap_sentences + [sentence]
+                current_size = overlap_size + sentence_words
+        
+        # Add remaining chunk
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
         
         return chunks
     
