@@ -315,12 +315,32 @@ export default function TrendsView({ currentPersona }: TrendsViewProps) {
               <BarChart3 className="w-6 h-6 text-[#FC3D21]" />
               <h3 className="text-xl font-bold text-gray-800">Top Research Topics</h3>
             </div>
+            
+            {/* Debug: Show data */}
+            {console.log('Topic Data:', topicData)}
+            
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={topicData} layout="horizontal">
+              <BarChart data={topicData} layout="vertical" margin={{ left: 100 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis type="number" stroke="#6b7280" style={{ fontSize: '12px', fontWeight: 600 }} />
-                <YAxis dataKey="name" type="category" width={150} stroke="#6b7280" style={{ fontSize: '11px', fontWeight: 600 }} />
-                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '2px solid #FC3D21', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)', padding: '12px' }} labelStyle={{ fontWeight: 'bold', color: '#0B3D91' }} />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  width={120}
+                  stroke="#6b7280" 
+                  style={{ fontSize: '11px', fontWeight: 600 }}
+                  interval={0}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                    border: '2px solid #FC3D21', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)', 
+                    padding: '12px' 
+                  }} 
+                  labelStyle={{ fontWeight: 'bold', color: '#0B3D91' }} 
+                />
                 <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
                 <Bar dataKey="count" fill="url(#colorGradient)" radius={[0, 8, 8, 0]} name="Mentions" />
                 <defs>
@@ -333,6 +353,7 @@ export default function TrendsView({ currentPersona }: TrendsViewProps) {
             </ResponsiveContainer>
           </Card>
         )}
+        
       </div>
     </div>
   );
