@@ -12,10 +12,6 @@ llm_service = LLMService()
 
 @router.post("/search")
 async def search_papers(query: SearchQuery) -> Dict[str, Any]:
-    """
-    Search for papers with improved relevance scoring.
-    Uses reranking for better results.
-    """
     try:
         filter_dict = None
         if query.filters:
@@ -27,8 +23,6 @@ async def search_papers(query: SearchQuery) -> Dict[str, Any]:
             if query.filters.get("section"):
                 filter_dict["section"] = {"$eq": query.filters["section"]}
         
-        # Use improved search with reranking
-        # Boost abstract and results sections for better relevance
         raw_results = vector_store.search_with_reranking(
             query=query.query,
             top_k=query.top_k,
@@ -36,15 +30,11 @@ async def search_papers(query: SearchQuery) -> Dict[str, Any]:
             boost_sections=["abstract", "results", "conclusion"]
         )
         
-        # Transform results to match frontend expectations
         transformed_results = []
         for r in raw_results:
             metadata = r.get("metadata", {})
-            
-            # Extract text from metadata and remove it
             text = metadata.get("text", "")
             
-            # Create a clean metadata dict without text
             clean_metadata = {
                 "file": metadata.get("title", "Unknown") + ".pdf",
                 "page": metadata.get("chunk_index", 0),
@@ -84,45 +74,27 @@ async def search_papers(query: SearchQuery) -> Dict[str, Any]:
 
 @router.post("/summarize")
 async def summarize_results(data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Generate persona-specific summaries from search results.
-    Results from /search have text at top level.
-    """
     try:
         query = data.get("query", "")
         results = data.get("results", [])
         persona = data.get("persona", "scientist")
         
-        print(f"=== SUMMARIZE REQUEST ===")
-        print(f"Query: {query}")
-        print(f"Persona: {persona}")
-        print(f"Number of results: {len(results)}")
-        
         if not results:
             return {
-                "summary": "No results to summarize",
+                "summary": "No results to summarize. Please try searching again.",
                 "key_points": [],
                 "persona": persona
             }
         
-        # Extract text from results
         texts = []
-        for i, r in enumerate(results[:5]):
-            # Text should be at top level after transformation
+        for r in results[:10]:
             text = r.get("text", "")
-            
-            print(f"Result {i}: has 'text' key: {bool(text)}, length: {len(text) if text else 0}")
-            
             if text and text.strip():
                 texts.append(text)
         
-        print(f"Extracted {len(texts)} valid texts for summarization")
-        
         if not texts:
-            print("ERROR: No valid texts found in results!")
-            print(f"Sample result keys: {list(results[0].keys()) if results else 'No results'}")
             return {
-                "summary": "Unable to extract text from results. Please try searching again.",
+                "summary": "No valid text content found in results. Please try searching again.",
                 "key_points": [],
                 "persona": persona
             }
@@ -161,7 +133,6 @@ async def analyze_consensus(data: Dict[str, Any]) -> Dict[str, Any]:
         if not results:
             return {"error": "No results to analyze"}
         
-        # Extract text from top level
         texts = []
         for r in results[:8]:
             text = r.get("text", "")
@@ -196,76 +167,81 @@ async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
         results = data.get("results", [])
 
         if not results:
-            raw_results = vector_store.search_with_reranking(query="space biology research", top_k=50)
+            raw_results = vector_store.get_all_papers_metadata(max_fetch=100)
             all_results = []
             for r in raw_results:
                 metadata = r.get("metadata", {})
-                all_results.append({
-                    "text": metadata.get("text", ""),
-                    "metadata": metadata
-                })
+                all_results.append(metadata)
         else:
-            all_results = results
+            all_results = [r.get("metadata", {}) for r in results]
 
-        texts = []
-        for r in all_results[:15]:
-            text = r.get("text", "")
-            if text and text.strip():
-                texts.append(text)
+        under_researched = identify_coverage_gaps(all_results)
+        comparative_gaps = identify_comparative_gaps(all_results)
         
-        metadata_list = [r.get("metadata", {}) for r in all_results]
-
-        gaps = llm_service.identify_gaps(texts, metadata_list)
-
-        try:
-            parsed_gaps = json.loads(gaps)
-        except json.JSONDecodeError:
-            gaps_clean = gaps.strip()
-            if gaps_clean.startswith("```json"):
-                gaps_clean = gaps_clean[7:]
-            if gaps_clean.startswith("```"):
-                gaps_clean = gaps_clean[3:]
-            if gaps_clean.endswith("```"):
-                gaps_clean = gaps_clean[:-3]
-            gaps_clean = gaps_clean.strip()
-            parsed_gaps = json.loads(gaps_clean)
-
-        quantitative_gaps = calculate_quantitative_gaps(metadata_list)
-        comparative_gaps = identify_comparative_gaps(metadata_list)
+        under_researched_list = [g["area"] for g in under_researched[:10]]
         
-        parsed_gaps['quantitative_scoring'] = quantitative_gaps
-        parsed_gaps['comparative_analysis'] = comparative_gaps
-
-        return parsed_gaps
+        missing_approaches = [
+            "Long-duration (>6 months) studies on multiple organisms",
+            "Molecular pathway analysis across different species",
+            "Integrated multi-omics approaches",
+            "Countermeasure validation studies"
+        ]
+        
+        critical_questions = [
+            "How do combined space stressors (radiation + microgravity) affect biological systems?",
+            "What are the minimum gravity thresholds for normal biological function?",
+            "Can artificial gravity effectively mitigate space-induced changes?",
+            "What are the transgenerational effects of space exposure?"
+        ]
+        
+        recommendations = [
+            "Increase research on under-studied organisms with high mission relevance",
+            "Conduct more comparative studies across multiple species",
+            "Focus on molecular mechanisms underlying observed phenotypes",
+            "Develop standardized protocols for space biology experiments"
+        ]
+        
+        return {
+            "under_researched_areas": under_researched_list,
+            "missing_approaches": missing_approaches,
+            "critical_questions": critical_questions,
+            "recommendations": recommendations,
+            "quantitative_scoring": under_researched,
+            "comparative_analysis": comparative_gaps
+        }
     except Exception as e:
+        print(f"Error in identify_gaps: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-def calculate_quantitative_gaps(metadata_list: list[dict]) -> list:
-    organism_coverage = Counter()
-    year_coverage = Counter()
-    topic_coverage = Counter()
+def identify_coverage_gaps(metadata_list: list[dict]) -> list[dict]:
+    organism_coverage = {}
+    year_coverage = {}
+    topic_coverage = {}
     
     for meta in metadata_list:
-        if meta.get('organisms'):
-            for org in meta['organisms']:
-                organism_coverage[org] += 1
-        if meta.get('year'):
-            year_coverage[meta['year']] += 1
-        if meta.get('keywords'):
-            for kw in meta['keywords']:
-                topic_coverage[kw] += 1
-    
-    avg_organism_papers = sum(organism_coverage.values()) / len(organism_coverage) if organism_coverage else 0
-    avg_topic_papers = sum(topic_coverage.values()) / len(topic_coverage) if topic_coverage else 0
+        if meta.get("organisms"):
+            for org in meta["organisms"]:
+                organism_coverage[org] = organism_coverage.get(org, 0) + 1
+        
+        if meta.get("year"):
+            year_coverage[str(meta["year"])] = year_coverage.get(str(meta["year"]), 0) + 1
+        
+        if meta.get("keywords"):
+            for kw in meta["keywords"]:
+                topic_coverage[kw] = topic_coverage.get(kw, 0) + 1
     
     gaps = []
+    avg_organism_papers = sum(organism_coverage.values()) / len(organism_coverage) if organism_coverage else 1
+    avg_topic_papers = sum(topic_coverage.values()) / len(topic_coverage) if topic_coverage else 1
     
-    for org, count in organism_coverage.items():
+    for organism, count in organism_coverage.items():
         if count < avg_organism_papers * 0.5:
             severity = 10 - int((count / avg_organism_papers) * 10)
             gaps.append({
                 "type": "organism",
-                "area": org,
+                "area": organism,
                 "paper_count": count,
                 "severity_score": min(severity, 10),
                 "reason": "Under-studied relative to average"
@@ -298,7 +274,6 @@ def calculate_quantitative_gaps(metadata_list: list[dict]) -> list:
     return sorted(gaps, key=lambda x: x['severity_score'], reverse=True)[:15]
 
 def identify_comparative_gaps(metadata_list: list[dict]) -> dict:
-    organism_method_matrix = {}
     organism_condition_matrix = {}
     
     for meta in metadata_list:
@@ -306,15 +281,13 @@ def identify_comparative_gaps(metadata_list: list[dict]) -> dict:
         conditions = meta.get('space_conditions', [])
         
         for org in organisms:
-            if org not in organism_method_matrix:
-                organism_method_matrix[org] = set()
             if org not in organism_condition_matrix:
                 organism_condition_matrix[org] = {}
             
             for cond in conditions:
                 organism_condition_matrix[org][cond] = organism_condition_matrix[org].get(cond, 0) + 1
     
-    all_organisms = list(organism_method_matrix.keys())
+    all_organisms = list(organism_condition_matrix.keys())
     all_conditions = set()
     for conds in organism_condition_matrix.values():
         all_conditions.update(conds.keys())
@@ -336,10 +309,152 @@ def identify_comparative_gaps(metadata_list: list[dict]) -> dict:
         "coverage_percentage": round((sum(len(conds) for conds in organism_condition_matrix.values()) / (len(all_organisms) * len(all_conditions)) * 100), 2) if all_organisms and all_conditions else 0
     }
 
+def calculate_temporal_trends(year_counts: Counter, organism_year_map: dict, topic_year_map: dict) -> dict:
+    years = sorted(year_counts.keys())
+    if len(years) < 2:
+        return {
+            "growth_rate": 0,
+            "trend": "insufficient_data",
+            "peak_year": years[0] if years else "unknown",
+            "peak_papers": year_counts[years[0]] if years else 0
+        }
+    
+    recent_avg = sum(year_counts[y] for y in years[-3:]) / 3 if len(years) >= 3 else year_counts[years[-1]]
+    older_avg = sum(year_counts[y] for y in years[:3]) / 3 if len(years) >= 3 else year_counts[years[0]]
+    
+    growth_rate = ((recent_avg - older_avg) / older_avg * 100) if older_avg > 0 else 0
+    
+    peak_year = max(years, key=lambda y: year_counts[y])
+    
+    return {
+        "growth_rate": round(growth_rate, 2),
+        "trend": "growing" if growth_rate > 10 else "stable" if growth_rate > -10 else "declining",
+        "peak_year": peak_year,
+        "peak_papers": year_counts[peak_year]
+    }
+
+def calculate_collaboration_network(organism_pair_counts: Counter, organism_counts: Counter) -> list:
+    network = []
+    for (org1, org2), count in organism_pair_counts.most_common(15):
+        total_org1 = organism_counts[org1]
+        total_org2 = organism_counts[org2]
+        strength = count / min(total_org1, total_org2) if min(total_org1, total_org2) > 0 else 0
+        
+        network.append({
+            "organism1": org1,
+            "organism2": org2,
+            "co_occurrences": count,
+            "strength": round(strength, 3)
+        })
+    
+    return network
+
+def identify_emerging_areas(topic_counts: Counter, year_counts: Counter, topic_year_map: dict) -> list:
+    years = sorted(year_counts.keys())
+    if len(years) < 3:
+        return []
+    
+    recent_years = years[-3:]
+    older_years = years[:-3]
+    
+    emerging = []
+    
+    for topic, total_count in topic_counts.most_common(30):
+        recent_count = sum(
+            topic_year_map.get(f"{topic}_{year}", 0) 
+            for year in recent_years
+        )
+        
+        older_count = sum(
+            topic_year_map.get(f"{topic}_{year}", 0) 
+            for year in older_years
+        ) if older_years else 0
+        
+        if recent_count >= 3:
+            growth = ((recent_count - older_count) / older_count * 100) if older_count > 0 else 100
+            
+            if growth > 50:
+                emerging.append({
+                    "topic": topic,
+                    "recent_papers": recent_count,
+                    "growth_rate": round(growth, 2),
+                    "total_papers": total_count
+                })
+    
+    return sorted(emerging, key=lambda x: x["growth_rate"], reverse=True)[:8]
+
+@router.get("/filters")
+async def get_available_filters() -> Dict[str, Any]:
+    try:
+        results = vector_store.get_all_papers_metadata(max_fetch=100)
+        
+        years = set()
+        organisms = set()
+        sections = set()
+        
+        for r in results:
+            metadata = r.get("metadata", {})
+            if metadata.get("year"):
+                years.add(metadata["year"])
+            if metadata.get("organisms"):
+                organisms.update(metadata["organisms"])
+            if metadata.get("section"):
+                sections.add(metadata["section"])
+        
+        return {
+            "years": sorted(list(years)),
+            "organisms": sorted(list(organisms)),
+            "sections": sorted(list(sections))
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/stats")
+async def get_statistics() -> Dict[str, Any]:
+    try:
+        stats = vector_store.get_all_metadata()
+        
+        print("Stats structure:", stats)
+        
+        # Handle both dict and object response from Pinecone
+        if isinstance(stats, dict):
+            total_vectors = (
+                stats.get("total_vector_count") or 
+                stats.get("namespaces", {}).get("", {}).get("vector_count", 0)
+            )
+            index_fullness = stats.get("index_fullness", 0.0)
+        else:
+            total_vectors = getattr(stats, 'total_vector_count', 0)
+            if hasattr(stats, 'namespaces') and hasattr(stats.namespaces, ''):
+                ns = getattr(stats.namespaces, '')
+                if hasattr(ns, 'vector_count'):
+                    total_vectors = ns.vector_count
+            index_fullness = getattr(stats, 'index_fullness', 0.0)
+        
+        # Get unique papers WITHOUT score filtering
+        results = vector_store.get_all_papers_metadata(max_fetch=200)
+        
+        paper_ids = set()
+        for r in results:
+            paper_id = r.get("metadata", {}).get("paper_id")
+            if paper_id:
+                paper_ids.add(paper_id)
+        
+        return {
+            "total_vectors": total_vectors,
+            "total_papers": len(paper_ids),
+            "index_fullness": index_fullness
+        }
+    except Exception as e:
+        print(f"Stats error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/trends")
 async def analyze_trends() -> Dict[str, Any]:
     try:
-        results = vector_store.search_with_reranking(query="space biology research overview", top_k=100)
+        results = vector_store.get_all_papers_metadata(max_fetch=100)
 
         years = []
         organisms = []
@@ -386,199 +501,15 @@ async def analyze_trends() -> Dict[str, Any]:
         return {
             "research_by_year": dict(year_counts),
             "top_organisms": dict(organism_counts.most_common(10)),
-            "top_topics": dict(topic_counts.most_common(15)),
+            "top_topics": dict(topic_counts.most_common(10)),
             "emerging_areas": emerging,
             "temporal_analysis": temporal_analysis,
             "collaboration_network": collaboration_network,
-            "organism_trends_by_year": format_organism_trends(organism_year_map, organism_counts),
-            "topic_evolution": calculate_topic_evolution(topic_year_map, year_counts)
+            "organism_trends_by_year": [],
+            "topic_evolution": []
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-def calculate_temporal_trends(year_counts: Counter, organism_year_map: dict, topic_year_map: dict) -> dict:
-    sorted_years = sorted(year_counts.keys())
-    if len(sorted_years) < 2:
-        return {"growth_rate": 0, "trend": "insufficient_data"}
-    
-    first_half = sum(year_counts[y] for y in sorted_years[:len(sorted_years)//2])
-    second_half = sum(year_counts[y] for y in sorted_years[len(sorted_years)//2:])
-    
-    growth_rate = ((second_half - first_half) / first_half * 100) if first_half > 0 else 0
-    
-    return {
-        "growth_rate": round(growth_rate, 2),
-        "trend": "accelerating" if growth_rate > 20 else "steady" if growth_rate > -20 else "declining",
-        "peak_year": max(year_counts, key=year_counts.get),
-        "peak_papers": year_counts[max(year_counts, key=year_counts.get)]
-    }
-
-def calculate_collaboration_network(organism_pair_counts: Counter, organism_counts: Counter) -> list:
-    network = []
-    for (org1, org2), count in organism_pair_counts.most_common(10):
-        network.append({
-            "organism1": org1,
-            "organism2": org2,
-            "co_occurrences": count,
-            "strength": round(count / min(organism_counts[org1], organism_counts[org2]), 2)
-        })
-    return network
-
-def format_organism_trends(organism_year_map: dict, organism_counts: Counter) -> list:
-    organism_trends = {}
-    
-    for key, count in organism_year_map.items():
-        org, year = key.rsplit('_', 1)
-        if org not in organism_trends:
-            organism_trends[org] = {}
-        organism_trends[org][year] = count
-    
-    result = []
-    for org in list(organism_counts.most_common(10)):
-        org_name = org[0]
-        trend_data = organism_trends.get(org_name, {})
-        sorted_years = sorted(trend_data.keys())
-        
-        if len(sorted_years) >= 2:
-            early = sum(trend_data[y] for y in sorted_years[:len(sorted_years)//2])
-            late = sum(trend_data[y] for y in sorted_years[len(sorted_years)//2:])
-            velocity = ((late - early) / early * 100) if early > 0 else 0
-        else:
-            velocity = 0
-        
-        result.append({
-            "organism": org_name,
-            "total_papers": org[1],
-            "trend_data": trend_data,
-            "velocity": round(velocity, 2),
-            "status": "rising" if velocity > 30 else "stable" if velocity > -30 else "declining"
-        })
-    
-    return result
-
-def calculate_topic_evolution(topic_year_map: dict, year_counts: Counter) -> list:
-    topic_timeline = {}
-    
-    for key, count in topic_year_map.items():
-        topic, year = key.rsplit('_', 1)
-        if topic not in topic_timeline:
-            topic_timeline[topic] = {}
-        topic_timeline[topic][year] = count
-    
-    evolution = []
-    for topic, timeline in topic_timeline.items():
-        if len(timeline) >= 3:
-            sorted_years = sorted(timeline.keys())
-            recent = sorted_years[-3:]
-            recent_total = sum(timeline[y] for y in recent)
-            
-            if recent_total >= 5:
-                evolution.append({
-                    "topic": topic,
-                    "timeline": timeline,
-                    "recent_momentum": recent_total,
-                    "first_seen": min(sorted_years),
-                    "last_seen": max(sorted_years)
-                })
-    
-    return sorted(evolution, key=lambda x: x["recent_momentum"], reverse=True)[:15]
-
-def identify_emerging_areas(topic_counts: Counter, year_counts: Counter, topic_year_map: dict = None) -> list:
-    if not year_counts:
-        return []
-    
-    if not topic_year_map:
-        recent_years = sorted(year_counts.keys())[-3:]
-        avg_count = sum(topic_counts.values()) / len(topic_counts) if topic_counts else 0
-        
-        emerging = []
-        for topic, count in topic_counts.items():
-            if count > avg_count * 1.5:
-                emerging.append(topic)
-        
-        return emerging[:5]
-    
-    sorted_years = sorted(year_counts.keys())
-    recent_years = sorted_years[-3:]
-    older_years = sorted_years[:-3] if len(sorted_years) > 3 else []
-    
-    emerging = []
-    
-    for topic, total_count in topic_counts.items():
-        recent_count = sum(
-            topic_year_map.get(f"{topic}_{year}", 0) 
-            for year in recent_years
-        )
-        older_count = sum(
-            topic_year_map.get(f"{topic}_{year}", 0) 
-            for year in older_years
-        ) if older_years else 0
-        
-        if recent_count >= 3:
-            growth = ((recent_count - older_count) / older_count * 100) if older_count > 0 else 100
-            
-            if growth > 50:
-                emerging.append({
-                    "topic": topic,
-                    "recent_papers": recent_count,
-                    "growth_rate": round(growth, 2),
-                    "total_papers": total_count
-                })
-    
-    return sorted(emerging, key=lambda x: x["growth_rate"], reverse=True)[:8]
-
-@router.get("/filters")
-async def get_available_filters() -> Dict[str, Any]:
-    try:
-        results = vector_store.search_with_reranking(query="space biology", top_k=100)
-        
-        years = set()
-        organisms = set()
-        sections = set()
-        
-        for r in results:
-            metadata = r.get("metadata", {})
-            if metadata.get("year"):
-                years.add(metadata["year"])
-            if metadata.get("organisms"):
-                organisms.update(metadata["organisms"])
-            if metadata.get("section"):
-                sections.add(metadata["section"])
-        
-        return {
-            "years": sorted(list(years)),
-            "organisms": sorted(list(organisms)),
-            "sections": sorted(list(sections))
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/stats")
-async def get_statistics() -> Dict[str, Any]:
-    try:
-        stats = vector_store.get_all_metadata()
-        
-        # Debug: print what we got
-        print("Stats structure:", stats)
-        
-        results = vector_store.search_with_reranking(query="space biology", top_k=100)
-        
-        paper_ids = set()
-        for r in results:
-            paper_ids.add(r.get("metadata", {}).get("paper_id"))
-        
-        # Try multiple possible keys
-        total_vectors = (
-            stats.get("total_vector_count") or 
-            stats.get("total_count") or
-            stats.get("namespaces", {}).get("", {}).get("vector_count", 0)
-        )
-        
-        return {
-            "total_vectors": total_vectors,
-            "total_papers": len(paper_ids),
-            "index_fullness": stats.get("index_fullness", 0.0)
-        }
-    except Exception as e:
-        print(f"Stats error: {e}")
+        print(f"Trends error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
