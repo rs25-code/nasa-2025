@@ -49,8 +49,7 @@ class VectorStore:
                 "paper_id": chunk.paper_id,
                 "chunk_type": chunk.chunk_type,
                 "chunk_index": chunk.chunk_index,
-                # Store more text for better context (increased from 1000 to 2000)
-                "text": chunk.text[:2000]  # Doubled text storage for richer context
+                "text": chunk.text[:2000]
             })
             
             vectors.append({
@@ -79,17 +78,10 @@ class VectorStore:
         top_k: int = 10,
         filter_dict: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Search with improved parameters for better relevance.
-        """
         if not self.index:
             self.initialize_index()
         
-        # Generate embedding for the query
         query_embedding = self.embedding_service.generate_embedding(query)
-        
-        # Search with larger initial set for better filtering
-        # Fetch 2x the requested results to allow for better filtering/ranking
         fetch_k = min(top_k * 2, 100)
         
         results = self.index.query(
@@ -99,9 +91,7 @@ class VectorStore:
             filter=filter_dict
         )
         
-        # Apply relevance threshold and return top_k
-        # This filters out low-quality matches
-        MIN_SCORE_THRESHOLD = 0.55  # Adjust based on your needs
+        MIN_SCORE_THRESHOLD = 0.35
         
         filtered_results = [
             {
@@ -113,7 +103,6 @@ class VectorStore:
             if match.score >= MIN_SCORE_THRESHOLD
         ]
         
-        # Return only top_k after filtering
         return filtered_results[:top_k]
     
     def search_with_reranking(
@@ -123,19 +112,9 @@ class VectorStore:
         filter_dict: Optional[Dict[str, Any]] = None,
         boost_sections: List[str] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Advanced search with section-based reranking for better results.
-        
-        Args:
-            query: Search query
-            top_k: Number of results to return
-            filter_dict: Pinecone filter dictionary
-            boost_sections: Sections to boost (e.g., ["abstract", "results"])
-        """
         if not self.index:
             self.initialize_index()
         
-        # Fetch more results initially
         query_embedding = self.embedding_service.generate_embedding(query)
         fetch_k = min(top_k * 3, 150)
         
@@ -146,20 +125,17 @@ class VectorStore:
             filter=filter_dict
         )
         
-        # Rerank based on section relevance
         reranked_results = []
         for match in results.matches:
             score = match.score
             metadata = match.metadata
             
-            # Boost abstract and results sections as they typically have key findings
             if boost_sections and metadata.get("section") in boost_sections:
-                score *= 1.15  # 15% boost for priority sections
+                score *= 1.15
             
-            # Boost recent papers (more relevant for trends)
             year = metadata.get("year")
             if year and year >= 2020:
-                score *= 1.05  # 5% boost for recent research
+                score *= 1.05
             
             reranked_results.append({
                 "id": match.id,
@@ -167,8 +143,7 @@ class VectorStore:
                 "metadata": metadata
             })
         
-        # Sort by reranked scores and apply threshold
-        MIN_SCORE_THRESHOLD = 0.55
+        MIN_SCORE_THRESHOLD = 0.35
         filtered_results = [
             r for r in reranked_results 
             if r["score"] >= MIN_SCORE_THRESHOLD
@@ -178,11 +153,31 @@ class VectorStore:
         
         return filtered_results[:top_k]
     
-
     def get_all_metadata(self) -> Dict[str, Any]:
         if not self.index:
             self.initialize_index()
     
         stats = self.index.describe_index_stats()
-        print("Raw Pinecone stats:", stats)  # DEBUG
         return stats
+    
+    def get_all_papers_metadata(self, max_fetch: int = 200) -> List[Dict[str, Any]]:
+        """Fetch metadata for all papers without score filtering"""
+        if not self.index:
+            self.initialize_index()
+        
+        query_embedding = self.embedding_service.generate_embedding("research")
+        
+        results = self.index.query(
+            vector=query_embedding,
+            top_k=max_fetch,
+            include_metadata=True
+        )
+        
+        return [
+            {
+                "id": match.id,
+                "score": match.score,
+                "metadata": match.metadata
+            }
+            for match in results.matches
+        ]
