@@ -49,7 +49,7 @@ class VectorStore:
                 "paper_id": chunk.paper_id,
                 "chunk_type": chunk.chunk_type,
                 "chunk_index": chunk.chunk_index,
-                # CRITICAL: Store more text for better context (increased from 1000 to 2000)
+                # Store more text for better context (increased from 1000 to 2000)
                 "text": chunk.text[:2000]  # Doubled text storage for richer context
             })
             
@@ -70,6 +70,7 @@ class VectorStore:
             self.initialize_index()
         
         for metadata, chunks in papers_data:
+            print(f"Uploading {metadata.file_path}...")
             self.upsert_chunks(chunks)
     
     def search(
