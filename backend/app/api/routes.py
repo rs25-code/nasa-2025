@@ -246,44 +246,188 @@ async def analyze_trends() -> Dict[str, Any]:
         years = []
         organisms = []
         topics = []
+        organism_year_map = {}
+        topic_year_map = {}
+        organism_pairs = []
 
         for r in results:
             metadata = r.get("metadata", {})
-            if metadata.get("year"):
-                years.append(metadata["year"])
-            if metadata.get("organisms"):
-                organisms.extend(metadata["organisms"])
-            if metadata.get("keywords"):
-                topics.extend(metadata["keywords"])
+            year = metadata.get("year")
+            
+            if year:
+                years.append(year)
+                
+                if metadata.get("organisms"):
+                    for org in metadata["organisms"]:
+                        organisms.append(org)
+                        key = f"{org}_{year}"
+                        organism_year_map[key] = organism_year_map.get(key, 0) + 1
+                
+                if metadata.get("keywords"):
+                    for kw in metadata["keywords"]:
+                        topics.append(kw)
+                        key = f"{kw}_{year}"
+                        topic_year_map[key] = topic_year_map.get(key, 0) + 1
+                
+                orgs = metadata.get("organisms", [])
+                if len(orgs) >= 2:
+                    for i in range(len(orgs)):
+                        for j in range(i+1, len(orgs)):
+                            pair = tuple(sorted([orgs[i], orgs[j]]))
+                            organism_pairs.append(pair)
 
         year_counts = Counter(years)
         organism_counts = Counter(organisms)
         topic_counts = Counter(topics)
+        organism_pair_counts = Counter(organism_pairs)
 
-        emerging = identify_emerging_areas(topic_counts, year_counts)
+        temporal_analysis = calculate_temporal_trends(year_counts, organism_year_map, topic_year_map)
+        collaboration_network = calculate_collaboration_network(organism_pair_counts, organism_counts)
+        emerging = identify_emerging_areas(topic_counts, year_counts, topic_year_map)
 
         return {
             "research_by_year": dict(year_counts),
             "top_organisms": dict(organism_counts.most_common(10)),
             "top_topics": dict(topic_counts.most_common(15)),
-            "emerging_areas": emerging
+            "emerging_areas": emerging,
+            "temporal_analysis": temporal_analysis,
+            "collaboration_network": collaboration_network,
+            "organism_trends_by_year": format_organism_trends(organism_year_map, organism_counts),
+            "topic_evolution": calculate_topic_evolution(topic_year_map, year_counts)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def identify_emerging_areas(topic_counts: Counter, year_counts: Counter) -> list:
+def calculate_temporal_trends(year_counts: Counter, organism_year_map: dict, topic_year_map: dict) -> dict:
+    sorted_years = sorted(year_counts.keys())
+    if len(sorted_years) < 2:
+        return {"growth_rate": 0, "trend": "insufficient_data"}
+    
+    first_half = sum(year_counts[y] for y in sorted_years[:len(sorted_years)//2])
+    second_half = sum(year_counts[y] for y in sorted_years[len(sorted_years)//2:])
+    
+    growth_rate = ((second_half - first_half) / first_half * 100) if first_half > 0 else 0
+    
+    return {
+        "growth_rate": round(growth_rate, 2),
+        "trend": "accelerating" if growth_rate > 20 else "steady" if growth_rate > -20 else "declining",
+        "peak_year": max(year_counts, key=year_counts.get),
+        "peak_papers": year_counts[max(year_counts, key=year_counts.get)]
+    }
+
+def calculate_collaboration_network(organism_pair_counts: Counter, organism_counts: Counter) -> list:
+    network = []
+    for (org1, org2), count in organism_pair_counts.most_common(10):
+        network.append({
+            "organism1": org1,
+            "organism2": org2,
+            "co_occurrences": count,
+            "strength": round(count / min(organism_counts[org1], organism_counts[org2]), 2)
+        })
+    return network
+
+def format_organism_trends(organism_year_map: dict, organism_counts: Counter) -> list:
+    organism_trends = {}
+    
+    for key, count in organism_year_map.items():
+        org, year = key.rsplit('_', 1)
+        if org not in organism_trends:
+            organism_trends[org] = {}
+        organism_trends[org][year] = count
+    
+    result = []
+    for org in list(organism_counts.most_common(10)):
+        org_name = org[0]
+        trend_data = organism_trends.get(org_name, {})
+        sorted_years = sorted(trend_data.keys())
+        
+        if len(sorted_years) >= 2:
+            early = sum(trend_data[y] for y in sorted_years[:len(sorted_years)//2])
+            late = sum(trend_data[y] for y in sorted_years[len(sorted_years)//2:])
+            velocity = ((late - early) / early * 100) if early > 0 else 0
+        else:
+            velocity = 0
+        
+        result.append({
+            "organism": org_name,
+            "total_papers": org[1],
+            "trend_data": trend_data,
+            "velocity": round(velocity, 2),
+            "status": "rising" if velocity > 30 else "stable" if velocity > -30 else "declining"
+        })
+    
+    return result
+
+def calculate_topic_evolution(topic_year_map: dict, year_counts: Counter) -> list:
+    topic_timeline = {}
+    
+    for key, count in topic_year_map.items():
+        topic, year = key.rsplit('_', 1)
+        if topic not in topic_timeline:
+            topic_timeline[topic] = {}
+        topic_timeline[topic][year] = count
+    
+    evolution = []
+    for topic, timeline in topic_timeline.items():
+        if len(timeline) >= 3:
+            sorted_years = sorted(timeline.keys())
+            recent = sorted_years[-3:]
+            recent_total = sum(timeline[y] for y in recent)
+            
+            if recent_total >= 5:
+                evolution.append({
+                    "topic": topic,
+                    "timeline": timeline,
+                    "recent_momentum": recent_total,
+                    "first_seen": min(sorted_years),
+                    "last_seen": max(sorted_years)
+                })
+    
+    return sorted(evolution, key=lambda x: x["recent_momentum"], reverse=True)[:15]
+
+def identify_emerging_areas(topic_counts: Counter, year_counts: Counter, topic_year_map: dict = None) -> list:
     if not year_counts:
         return []
     
-    recent_years = sorted(year_counts.keys())[-3:]
-    avg_count = sum(topic_counts.values()) / len(topic_counts) if topic_counts else 0
+    if not topic_year_map:
+        recent_years = sorted(year_counts.keys())[-3:]
+        avg_count = sum(topic_counts.values()) / len(topic_counts) if topic_counts else 0
+        
+        emerging = []
+        for topic, count in topic_counts.items():
+            if count > avg_count * 1.5:
+                emerging.append(topic)
+        
+        return emerging[:5]
+    
+    sorted_years = sorted(year_counts.keys())
+    recent_years = sorted_years[-3:]
+    older_years = sorted_years[:-3] if len(sorted_years) > 3 else []
     
     emerging = []
-    for topic, count in topic_counts.items():
-        if count > avg_count * 1.5:
-            emerging.append(topic)
     
-    return emerging[:5]
+    for topic, total_count in topic_counts.items():
+        recent_count = sum(
+            topic_year_map.get(f"{topic}_{year}", 0) 
+            for year in recent_years
+        )
+        older_count = sum(
+            topic_year_map.get(f"{topic}_{year}", 0) 
+            for year in older_years
+        ) if older_years else 0
+        
+        if recent_count >= 3:
+            growth = ((recent_count - older_count) / older_count * 100) if older_count > 0 else 100
+            
+            if growth > 50:
+                emerging.append({
+                    "topic": topic,
+                    "recent_papers": recent_count,
+                    "growth_rate": round(growth, 2),
+                    "total_papers": total_count
+                })
+    
+    return sorted(emerging, key=lambda x: x["growth_rate"], reverse=True)[:8]
 
 @router.get("/filters")
 async def get_available_filters() -> Dict[str, Any]:
