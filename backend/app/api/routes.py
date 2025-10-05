@@ -427,14 +427,12 @@ async def get_statistics() -> Dict[str, Any]:
                 stats.get("total_vector_count") or 
                 stats.get("namespaces", {}).get("", {}).get("vector_count", 0)
             )
-            index_fullness = stats.get("index_fullness", 0.0)
         else:
             total_vectors = getattr(stats, 'total_vector_count', 0)
             if hasattr(stats, 'namespaces') and hasattr(stats.namespaces, ''):
                 ns = getattr(stats.namespaces, '')
                 if hasattr(ns, 'vector_count'):
                     total_vectors = ns.vector_count
-            index_fullness = getattr(stats, 'index_fullness', 0.0)
         
         results = vector_store.get_all_papers_metadata(limit=10000)
         
@@ -444,7 +442,12 @@ async def get_statistics() -> Dict[str, Any]:
             if paper_id:
                 paper_ids.add(paper_id)
         
-        print(f"Stats: {total_vectors} vectors, {len(paper_ids)} unique papers")
+        # Calculate meaningful index fullness based on papers indexed vs target
+        # Assuming target is 608 papers from NASA challenge
+        TARGET_PAPERS = 608
+        index_fullness = min(len(paper_ids) / TARGET_PAPERS, 1.0) if len(paper_ids) > 0 else 0.0
+        
+        print(f"Stats: {total_vectors} vectors, {len(paper_ids)} unique papers, {index_fullness*100:.1f}% indexed")
         
         return {
             "total_vectors": total_vectors,
