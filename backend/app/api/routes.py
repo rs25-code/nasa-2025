@@ -175,7 +175,7 @@ def safe_int_year(year_value) -> Optional[int]:
 @router.post("/gaps")
 async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        raw_results = vector_store.get_all_papers_metadata(max_fetch=500)
+        raw_results = vector_store.get_all_papers_metadata(limit=10000)
         all_results = [r.get("metadata", {}) for r in raw_results]
 
         under_researched = identify_coverage_gaps(all_results)
@@ -393,7 +393,7 @@ def identify_emerging_areas(topic_counts: Counter, year_counts: Counter, topic_y
 @router.get("/filters")
 async def get_available_filters() -> Dict[str, Any]:
     try:
-        results = vector_store.get_all_papers_metadata(max_fetch=500)
+        results = vector_store.get_all_papers_metadata(limit=10000)
         
         years = set()
         organisms = set()
@@ -436,7 +436,7 @@ async def get_statistics() -> Dict[str, Any]:
                     total_vectors = ns.vector_count
             index_fullness = getattr(stats, 'index_fullness', 0.0)
         
-        results = vector_store.get_all_papers_metadata(max_fetch=500)
+        results = vector_store.get_all_papers_metadata(limit=10000)
         
         paper_ids = set()
         for r in results:
@@ -460,7 +460,7 @@ async def get_statistics() -> Dict[str, Any]:
 @router.get("/trends")
 async def analyze_trends() -> Dict[str, Any]:
     try:
-        results = vector_store.get_all_papers_metadata(max_fetch=500)
+        results = vector_store.get_all_papers_metadata(limit=10000)
 
         years = []
         organisms = []
