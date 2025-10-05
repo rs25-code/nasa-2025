@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import LandingPage from '@/components/LandingPage';
-import Layout from '@/components/layout/Layout';
-import type { Persona } from '@/types';
+import LandingPage from './components/LandingPage';
+import Layout from './components/layout/Layout';
+import type { Persona } from './types';
 
 function App() {
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
@@ -16,6 +16,11 @@ function App() {
     setSelectedPersona(persona);
   };
 
+  const handleBackToLanding = () => {
+    console.log('Back to landing');
+    setSelectedPersona(null);
+  };
+
   if (!selectedPersona) {
     return <LandingPage onSelectPersona={handlePersonaSelect} />;
   }
@@ -26,6 +31,7 @@ function App() {
     <Layout
       currentPersona={selectedPersona}
       onPersonaChange={handlePersonaChange}
+      onBackToLanding={handleBackToLanding}
     />
   );
 }
