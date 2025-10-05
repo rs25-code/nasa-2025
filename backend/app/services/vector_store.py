@@ -166,42 +166,49 @@ class VectorStore:
         return stats
     
     def get_all_papers_metadata(self, limit: int = 10000) -> List[Dict[str, Any]]:
-        """Fetch ALL papers metadata without any score filtering using list+fetch"""
+        """Fetch ALL papers metadata by querying with multiple diverse terms"""
         if not self.index:
             self.initialize_index()
+        
+        # Use multiple diverse queries to cover all papers
+        diverse_queries = [
+            "space biology research",
+            "microgravity effects",
+            "radiation exposure",
+            "plant growth",
+            "muscle atrophy",
+            "bone density",
+            "immune system",
+            "gene expression",
+            "cell culture",
+            "astronaut health"
+        ]
         
         all_results = []
         seen_ids = set()
         
-        # Use list() to get all vector IDs with pagination
-        for ids in self.index.list(limit=limit):
-            # Fetch vectors in batches
-            batch_ids = []
-            for vector_id in ids:
-                if vector_id not in seen_ids:
-                    batch_ids.append(vector_id)
-                    seen_ids.add(vector_id)
-                
-                # Fetch in batches of 100
-                if len(batch_ids) >= 100:
-                    fetched = self.index.fetch(ids=batch_ids)
-                    for vid, vector_data in fetched.vectors.items():
-                        all_results.append({
-                            "id": vid,
-                            "score": 1.0,  # No score for list operation
-                            "metadata": vector_data.metadata
-                        })
-                    batch_ids = []
+        for query_text in diverse_queries:
+            query_embedding = self.embedding_service.generate_embedding(query_text)
             
-            # Fetch remaining batch
-            if batch_ids:
-                fetched = self.index.fetch(ids=batch_ids)
-                for vid, vector_data in fetched.vectors.items():
+            # Fetch maximum possible results
+            results = self.index.query(
+                vector=query_embedding,
+                top_k=10000,  # Pinecone max
+                include_metadata=True
+            )
+            
+            for match in results.matches:
+                if match.id not in seen_ids:
+                    seen_ids.add(match.id)
                     all_results.append({
-                        "id": vid,
-                        "score": 1.0,
-                        "metadata": vector_data.metadata
+                        "id": match.id,
+                        "score": match.score,
+                        "metadata": match.metadata
                     })
+            
+            # If we've seen the same IDs multiple times, we've likely covered everything
+            if len(all_results) >= limit:
+                break
         
-        print(f"Fetched {len(all_results)} total vectors from Pinecone")
+        print(f"Fetched {len(all_results)} unique vectors using {len(diverse_queries)} queries")
         return all_results
