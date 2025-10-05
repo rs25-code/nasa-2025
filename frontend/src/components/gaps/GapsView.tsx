@@ -211,6 +211,103 @@ export default function GapsView({ currentPersona }: GapsViewProps) {
           </div>
         </Card>
       )}
+{/* Quantitative Gap Scoring */}
+{gapAnalysis.quantitative_scoring && gapAnalysis.quantitative_scoring.length > 0 && (
+  <Card className="p-8 bg-gradient-to-br from-red-50 via-white to-red-50/50 border-2 border-red-200 shadow-xl hover:shadow-2xl transition-all duration-300">
+    <div className="flex items-start gap-4">
+      <div className="p-3 bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg flex-shrink-0">
+        <BarChart3 className="w-6 h-6 text-white" />
+      </div>
+      <div className="flex-1">
+        <h3 className="text-2xl font-bold text-gray-800 mb-3">
+          Quantitative Gap Scoring
+        </h3>
+        <p className="text-gray-600 mb-6 text-base">
+          Gaps ranked by severity (1-10 scale)
+        </p>
+        <div className="space-y-3">
+          {gapAnalysis.quantitative_scoring.slice(0, 10).map((gap, index) => (
+            <div
+              key={index}
+              className="p-4 bg-white rounded-lg border-2 border-red-200 hover:border-red-400 transition-all"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <Badge className={
+                    gap.severity_score >= 8 
+                      ? 'bg-red-600' 
+                      : gap.severity_score >= 5 
+                      ? 'bg-orange-500' 
+                      : 'bg-yellow-500'
+                  }>
+                    Severity: {gap.severity_score}/10
+                  </Badge>
+                  <Badge variant="outline">{gap.type}</Badge>
+                </div>
+                <span className="text-sm text-gray-600">{gap.paper_count} papers</span>
+              </div>
+              <p className="font-semibold text-gray-800 mb-1">{gap.area}</p>
+              <p className="text-sm text-gray-600">{gap.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
-  );
+  </Card>
+)}
+
+{/* Comparative Gap Analysis */}
+{gapAnalysis.comparative_analysis && (
+  <Card className="p-8 bg-gradient-to-br from-indigo-50 via-white to-indigo-50/50 border-2 border-indigo-200 shadow-xl hover:shadow-2xl transition-all duration-300">
+    <div className="flex items-start gap-4">
+      <div className="p-3 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg flex-shrink-0">
+        <Network className="w-6 h-6 text-white" />
+      </div>
+      <div className="flex-1">
+        <h3 className="text-2xl font-bold text-gray-800 mb-3">
+          Cross-Reference Gap Analysis
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="p-4 bg-white rounded-lg border-2 border-indigo-200">
+            <p className="text-sm text-gray-600 mb-1">Coverage</p>
+            <p className="text-3xl font-bold text-indigo-600">
+              {gapAnalysis.comparative_analysis.coverage_percentage}%
+            </p>
+          </div>
+          <div className="p-4 bg-white rounded-lg border-2 border-indigo-200">
+            <p className="text-sm text-gray-600 mb-1">Studied</p>
+            <p className="text-3xl font-bold text-indigo-600">
+              {gapAnalysis.comparative_analysis.studied_combinations}
+            </p>
+          </div>
+          <div className="p-4 bg-white rounded-lg border-2 border-indigo-200">
+            <p className="text-sm text-gray-600 mb-1">Possible</p>
+            <p className="text-3xl font-bold text-indigo-600">
+              {gapAnalysis.comparative_analysis.total_combinations}
+            </p>
+          </div>
+        </div>
+        <p className="text-gray-600 mb-4 text-base">
+          Organism-Condition combinations not yet studied:
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+          {gapAnalysis.comparative_analysis.organism_condition_gaps.slice(0, 20).map((gap, index) => (
+            <div
+              key={index}
+              className="p-3 bg-white rounded-lg border border-indigo-200"
+            >
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">{gap.organism}</Badge>
+                <span className="text-gray-400">×</span>
+                <Badge variant="outline" className="text-xs">{gap.condition}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </Card>
+)}
+</div>
+);
 }
