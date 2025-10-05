@@ -196,9 +196,7 @@ async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
         results = data.get("results", [])
 
         if not results:
-            # Get fresh results from vector store
             raw_results = vector_store.search(query="space biology research", top_k=50)
-            # These need transformation too!
             all_results = []
             for r in raw_results:
                 metadata = r.get("metadata", {})
@@ -209,7 +207,6 @@ async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
         else:
             all_results = results
 
-        # Extract text from top level
         texts = []
         for r in all_results[:15]:
             text = r.get("text", "")
@@ -233,10 +230,111 @@ async def identify_gaps(data: Dict[str, Any]) -> Dict[str, Any]:
             gaps_clean = gaps_clean.strip()
             parsed_gaps = json.loads(gaps_clean)
 
+        quantitative_gaps = calculate_quantitative_gaps(metadata_list)
+        comparative_gaps = identify_comparative_gaps(metadata_list)
+        
+        parsed_gaps['quantitative_scoring'] = quantitative_gaps
+        parsed_gaps['comparative_analysis'] = comparative_gaps
+
         return parsed_gaps
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def calculate_quantitative_gaps(metadata_list: list[dict]) -> list:
+    organism_coverage = Counter()
+    year_coverage = Counter()
+    topic_coverage = Counter()
+    
+    for meta in metadata_list:
+        if meta.get('organisms'):
+            for org in meta['organisms']:
+                organism_coverage[org] += 1
+        if meta.get('year'):
+            year_coverage[meta['year']] += 1
+        if meta.get('keywords'):
+            for kw in meta['keywords']:
+                topic_coverage[kw] += 1
+    
+    avg_organism_papers = sum(organism_coverage.values()) / len(organism_coverage) if organism_coverage else 0
+    avg_topic_papers = sum(topic_coverage.values()) / len(topic_coverage) if topic_coverage else 0
+    
+    gaps = []
+    
+    for org, count in organism_coverage.items():
+        if count < avg_organism_papers * 0.5:
+            severity = 10 - int((count / avg_organism_papers) * 10)
+            gaps.append({
+                "type": "organism",
+                "area": org,
+                "paper_count": count,
+                "severity_score": min(severity, 10),
+                "reason": "Under-studied relative to average"
+            })
+    
+    for topic, count in topic_coverage.items():
+        if count < avg_topic_papers * 0.3:
+            severity = 10 - int((count / avg_topic_papers) * 10)
+            gaps.append({
+                "type": "topic",
+                "area": topic,
+                "paper_count": count,
+                "severity_score": min(severity, 10),
+                "reason": "Minimal research coverage"
+            })
+    
+    sorted_years = sorted(year_coverage.keys())
+    if len(sorted_years) >= 3:
+        recent_years = sorted_years[-3:]
+        for year in range(int(sorted_years[0]), int(sorted_years[-1]) + 1):
+            if str(year) not in year_coverage and str(year) not in recent_years:
+                gaps.append({
+                    "type": "temporal",
+                    "area": f"Research from {year}",
+                    "paper_count": 0,
+                    "severity_score": 7,
+                    "reason": "No publications in this year"
+                })
+    
+    return sorted(gaps, key=lambda x: x['severity_score'], reverse=True)[:15]
+
+def identify_comparative_gaps(metadata_list: list[dict]) -> dict:
+    organism_method_matrix = {}
+    organism_condition_matrix = {}
+    
+    for meta in metadata_list:
+        organisms = meta.get('organisms', [])
+        conditions = meta.get('space_conditions', [])
+        
+        for org in organisms:
+            if org not in organism_method_matrix:
+                organism_method_matrix[org] = set()
+            if org not in organism_condition_matrix:
+                organism_condition_matrix[org] = {}
+            
+            for cond in conditions:
+                organism_condition_matrix[org][cond] = organism_condition_matrix[org].get(cond, 0) + 1
+    
+    all_organisms = list(organism_method_matrix.keys())
+    all_conditions = set()
+    for conds in organism_condition_matrix.values():
+        all_conditions.update(conds.keys())
+    
+    cross_gaps = []
+    for org in all_organisms:
+        for cond in all_conditions:
+            if cond not in organism_condition_matrix[org]:
+                cross_gaps.append({
+                    "organism": org,
+                    "condition": cond,
+                    "status": "not_studied"
+                })
+    
+    return {
+        "organism_condition_gaps": cross_gaps[:20],
+        "total_combinations": len(all_organisms) * len(all_conditions),
+        "studied_combinations": sum(len(conds) for conds in organism_condition_matrix.values()),
+        "coverage_percentage": round((sum(len(conds) for conds in organism_condition_matrix.values()) / (len(all_organisms) * len(all_conditions)) * 100), 2) if all_organisms and all_conditions else 0
+    }
 
 @router.get("/trends")
 async def analyze_trends() -> Dict[str, Any]:
